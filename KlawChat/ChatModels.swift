@@ -115,6 +115,31 @@ struct ChatMessage: Identifiable, Equatable, Sendable {
     }
 }
 
+extension ChatMessage {
+    func relativeTimestampText(nowMilliseconds: Int = Int(Date().timeIntervalSince1970 * 1000)) -> String {
+        let elapsedSeconds = max(0, (nowMilliseconds - timestampMilliseconds) / 1000)
+        if elapsedSeconds < 1 {
+            return "just now"
+        }
+        if elapsedSeconds < 60 {
+            return "\(elapsedSeconds) \(elapsedSeconds == 1 ? "second" : "seconds") ago"
+        }
+
+        let elapsedMinutes = elapsedSeconds / 60
+        if elapsedMinutes < 60 {
+            return "\(elapsedMinutes) \(elapsedMinutes == 1 ? "minute" : "minutes") ago"
+        }
+
+        let elapsedHours = elapsedMinutes / 60
+        if elapsedHours < 24 {
+            return "\(elapsedHours) \(elapsedHours == 1 ? "hour" : "hours") ago"
+        }
+
+        let elapsedDays = elapsedHours / 24
+        return "\(elapsedDays) \(elapsedDays == 1 ? "day" : "days") ago"
+    }
+}
+
 struct ArchiveAttachment: Codable, Equatable, Sendable {
     var archiveID: String
     var filename: String?

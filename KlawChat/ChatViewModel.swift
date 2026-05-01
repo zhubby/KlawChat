@@ -288,6 +288,10 @@ final class ChatViewModel: ObservableObject {
                 defaultProvider: result.string("default_provider"),
                 providers: providerValues.compactMap { $0.objectValue?.provider }
             )
+            if bootstrapRequestID != nil {
+                isWorkspaceLoaded = true
+                bootstrapRequestID = nil
+            }
             return
         }
 
@@ -475,15 +479,23 @@ final class ChatViewModel: ObservableObject {
     ) {
         var messages = messagesBySession[sessionKey, default: []]
         let activeRequestID = activeStreamRequestIDs[sessionKey]
+        let isFinalizedDuplicate = messages.last?.role == .assistant
+            && messages.last?.isStreaming == false
+            && messages.last?.messageID == nil
+            && messages.last?.text == content
         let shouldReplaceLast = messages.last?.role == .assistant
-            && (messages.last?.isStreaming == true || (requestID != nil && requestID == activeRequestID))
+            && (
+                messages.last?.isStreaming == true
+                    || (requestID != nil && requestID == activeRequestID)
+                    || isFinalizedDuplicate
+            )
 
         if shouldReplaceLast, let lastIndex = messages.indices.last {
             messages[lastIndex].text = content
             messages[lastIndex].timestampMilliseconds = timestampMilliseconds
             messages[lastIndex].messageID = messageID
             messages[lastIndex].metadata = metadata
-            messages[lastIndex].isStreaming = true
+            messages[lastIndex].isStreaming = !isFinalizedDuplicate
         } else {
             messages.append(ChatMessage(
                 role: .assistant,

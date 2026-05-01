@@ -4,6 +4,16 @@ import Testing
 
 @MainActor
 struct ChatViewModelTests {
+    @Test func chatMessageFormatsRelativeTimestamp() {
+        let now = 1_000_000
+
+        #expect(ChatMessage(role: .assistant, text: "", timestampMilliseconds: now).relativeTimestampText(nowMilliseconds: now) == "just now")
+        #expect(ChatMessage(role: .assistant, text: "", timestampMilliseconds: now - 5_000).relativeTimestampText(nowMilliseconds: now) == "5 seconds ago")
+        #expect(ChatMessage(role: .assistant, text: "", timestampMilliseconds: now - 60_000).relativeTimestampText(nowMilliseconds: now) == "1 minute ago")
+        #expect(ChatMessage(role: .assistant, text: "", timestampMilliseconds: now - 7_200_000).relativeTimestampText(nowMilliseconds: now) == "2 hours ago")
+        #expect(ChatMessage(role: .assistant, text: "", timestampMilliseconds: now - 172_800_000).relativeTimestampText(nowMilliseconds: now) == "2 days ago")
+    }
+
     @Test func decodesSnakeCaseServerFrameTypes() throws {
         let json = """
         {
@@ -54,6 +64,20 @@ struct ChatViewModelTests {
         viewModel.connect()
         await Task.yield()
         viewModel.apply(frame: .result(id: repository.bootstrapRequestID, result: [:]))
+
+        #expect(viewModel.isWorkspaceLoaded == true)
+        #expect(viewModel.sessions.isEmpty)
+    }
+
+    @Test func providerResultMarksWorkspaceLoadedWhenBootstrapResultIsMissing() async {
+        let repository = MockChatRepository()
+        let viewModel = ChatViewModel(repository: repository)
+
+        viewModel.connect()
+        await Task.yield()
+        viewModel.apply(frame: .result(id: "providers", result: [
+            "providers": .array([])
+        ]))
 
         #expect(viewModel.isWorkspaceLoaded == true)
         #expect(viewModel.sessions.isEmpty)
@@ -127,6 +151,38 @@ struct ChatViewModelTests {
 
         #expect(viewModel.selectedMessages.last?.text == "Hello")
         #expect(viewModel.selectedMessages.last?.isStreaming == false)
+    }
+
+    @Test func finalAssistantMessageAfterStreamDoneReplacesStreamedBubble() {
+        let viewModel = ChatViewModel(repository: MockChatRepository())
+        viewModel.apply(frame: .result(id: "bootstrap", result: [
+            "sessions": .array([
+                .object([
+                    "session_key": .string("s1"),
+                    "title": .string("Agent"),
+                    "created_at_ms": .number(1)
+                ])
+            ])
+        ]))
+
+        viewModel.apply(frame: .event(event: "session.stream.delta", payload: [
+            "session_key": .string("s1"),
+            "delta": .string("Hello")
+        ]))
+        viewModel.apply(frame: .event(event: "session.stream.done", payload: [
+            "session_key": .string("s1")
+        ]))
+        viewModel.apply(frame: .event(event: "session.message", payload: [
+            "session_key": .string("s1"),
+            "role": .string("assistant"),
+            "message_id": .string("m-final"),
+            "response": .object(["content": .string("Hello")])
+        ]))
+
+        #expect(viewModel.selectedMessages.count == 1)
+        #expect(viewModel.selectedMessages.first?.text == "Hello")
+        #expect(viewModel.selectedMessages.first?.messageID == "m-final")
+        #expect(viewModel.selectedMessages.first?.isStreaming == false)
     }
 
     @Test func repeatedAssistantSessionMessagesForSameRequestUpdateOneBubble() {

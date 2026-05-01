@@ -89,6 +89,7 @@ private struct AgentListView: View {
                 }
             }
         }
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 Button {
@@ -290,34 +291,51 @@ private struct MessageBubbleView: View {
             if message.role == .user {
                 Spacer(minLength: 40)
             }
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    Text(label)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                    if message.isStreaming {
-                        ProgressView()
-                            .scaleEffect(0.6)
-                    }
-                }
-                if message.role == .assistant {
-                    Markdown(message.text.isEmpty ? " " : message.text)
-                        .markdownTextStyle {
-                            FontSize(15)
+            VStack(alignment: horizontalAlignment, spacing: 4) {
+                TimelineView(.periodic(from: .now, by: 30)) { context in
+                    HStack(spacing: 6) {
+                        Text(label)
+                            .font(.caption.weight(.semibold))
+                        Text(message.relativeTimestampText(nowMilliseconds: Int(context.date.timeIntervalSince1970 * 1000)))
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                        if message.isStreaming {
+                            ProgressView()
+                                .scaleEffect(0.6)
                         }
-                } else {
-                    Text(message.text)
-                        .font(.body)
+                    }
+                    .foregroundStyle(.secondary)
                 }
+
+                messageBody
+                    .padding(12)
+                    .background(background)
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .frame(maxWidth: 620, alignment: message.role == .user ? .trailing : .leading)
+                    .multilineTextAlignment(message.role == .user ? .trailing : .leading)
             }
-            .padding(12)
-            .background(background)
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             .frame(maxWidth: 620, alignment: message.role == .user ? .trailing : .leading)
             if message.role != .user {
                 Spacer(minLength: 40)
             }
         }
+    }
+
+    @ViewBuilder
+    private var messageBody: some View {
+        if message.role == .assistant {
+            Markdown(message.text.isEmpty ? " " : message.text)
+                .markdownTextStyle {
+                    FontSize(15)
+                }
+        } else {
+            Text(message.text)
+                .font(.body)
+        }
+    }
+
+    private var horizontalAlignment: HorizontalAlignment {
+        message.role == .user ? .trailing : .leading
     }
 
     private var label: String {
