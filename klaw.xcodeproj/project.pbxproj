@@ -39,12 +39,12 @@
 			membershipExceptions = (
 				Info.plist,
 			);
-			target = 09FFEEB12FA4BC220001E49C /*/* KlawChat */;
+			target = 09FFEEB12FA4BC220001E49C /* KlawChat */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		09FFEEB42FA4BC220001E49C /*/* KlawChat */ = {
+		09FFEEB42FA4BC220001E49C /* KlawChat */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				09FFEED52FA4BC230001E49C /* Exceptions for "KlawChat" folder in "KlawChat" target */,
@@ -52,12 +52,12 @@
 			path = KlawChat;
 			sourceTree = "<group>";
 		};
-		09FFEEC62FA4BC230001E49C /*/* KlawChatTests */ = {
+		09FFEEC62FA4BC230001E49C /* KlawChatTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = KlawChatTests;
 			sourceTree = "<group>";
 		};
-		09FFEED02FA4BC230001E49C /*/* KlawChatUITests */ = {
+		09FFEED02FA4BC230001E49C /* KlawChatUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = KlawChatUITests;
 			sourceTree = "<group>";
@@ -93,9 +93,9 @@
 		09FFEEA92FA4BC210001E49C = {
 			isa = PBXGroup;
 			children = (
-				09FFEEB42FA4BC220001E49C /*/* KlawChat */,
-				09FFEEC62FA4BC230001E49C /*/* KlawChatTests */,
-				09FFEED02FA4BC230001E49C /*/* KlawChatUITests */,
+				09FFEEB42FA4BC220001E49C /* KlawChat */,
+				09FFEEC62FA4BC230001E49C /* KlawChatTests */,
+				09FFEED02FA4BC230001E49C /* KlawChatUITests */,
 				09FFEEB32FA4BC220001E49C /* Products */,
 			);
 			sourceTree = "<group>";
@@ -113,7 +113,7 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		09FFEEB12FA4BC220001E49C /*/* KlawChat */ = {
+		09FFEEB12FA4BC220001E49C /* KlawChat */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 09FFEED62FA4BC230001E49C /* Build configuration list for PBXNativeTarget "KlawChat" */;
 			buildPhases = (
@@ -126,7 +126,7 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				09FFEEB42FA4BC220001E49C /*/* KlawChat */,
+				09FFEEB42FA4BC220001E49C /* KlawChat */,
 			);
 			name = KlawChat;
 			packageProductDependencies = (
@@ -136,7 +136,7 @@
 			productReference = 09FFEEB22FA4BC220001E49C /* KlawChat.app */;
 			productType = "com.apple.product-type.application";
 		};
-		09FFEEC22FA4BC230001E49C /*/* KlawChatTests */ = {
+		09FFEEC22FA4BC230001E49C /* KlawChatTests */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 09FFEEDB2FA4BC230001E49C /* Build configuration list for PBXNativeTarget "KlawChatTests" */;
 			buildPhases = (
@@ -150,7 +150,7 @@
 				09FFEEC52FA4BC230001E49C /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				09FFEEC62FA4BC230001E49C /*/* KlawChatTests */,
+				09FFEEC62FA4BC230001E49C /* KlawChatTests */,
 			);
 			name = KlawChatTests;
 			packageProductDependencies = (
@@ -159,7 +159,7 @@
 			productReference = 09FFEEC32FA4BC230001E49C /* KlawChatTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
-		09FFEECC2FA4BC230001E49C /*/* KlawChatUITests */ = {
+		09FFEECC2FA4BC230001E49C /* KlawChatUITests */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 09FFEEDE2FA4BC230001E49C /* Build configuration list for PBXNativeTarget "KlawChatUITests" */;
 			buildPhases = (
@@ -173,7 +173,7 @@
 				09FFEECF2FA4BC230001E49C /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				09FFEED02FA4BC230001E49C /*/* KlawChatUITests */,
+				09FFEED02FA4BC230001E49C /* KlawChatUITests */,
 			);
 			name = KlawChatUITests;
 			packageProductDependencies = (
@@ -205,7 +205,7 @@
 					};
 				};
 			};
-			buildConfigurationList = 09FFEEAD2FA4BC210001E49C /* Build configuration list for PBXProject "KlawChat" */;
+			buildConfigurationList = 09FFEEAD2FA4BC210001E49C /* Build configuration list for PBXProject "klaw" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -222,9 +222,9 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				09FFEEB12FA4BC220001E49C /*/* KlawChat */,
-				09FFEEC22FA4BC230001E49C /*/* KlawChatTests */,
-				09FFEECC2FA4BC230001E49C /*/* KlawChatUITests */,
+				09FFEEB12FA4BC220001E49C /* KlawChat */,
+				09FFEEC22FA4BC230001E49C /* KlawChatTests */,
+				09FFEECC2FA4BC230001E49C /* KlawChatUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -280,12 +280,12 @@
 /* Begin PBXTargetDependency section */
 		09FFEEC52FA4BC230001E49C /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 09FFEEB12FA4BC220001E49C /*/* KlawChat */;
+			target = 09FFEEB12FA4BC220001E49C /* KlawChat */;
 			targetProxy = 09FFEEC42FA4BC230001E49C /* PBXContainerItemProxy */;
 		};
 		09FFEECF2FA4BC230001E49C /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 09FFEEB12FA4BC220001E49C /*/* KlawChat */;
+			target = 09FFEEB12FA4BC220001E49C /* KlawChat */;
 			targetProxy = 09FFEECE2FA4BC230001E49C /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
@@ -567,7 +567,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		09FFEEAD2FA4BC210001E49C /* Build configuration list for PBXProject "KlawChat" */ = {
+		09FFEEAD2FA4BC210001E49C /* Build configuration list for PBXProject "klaw" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				09FFEED92FA4BC230001E49C /* Debug */,
