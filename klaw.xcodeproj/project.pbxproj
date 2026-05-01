@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		09FFEEE12FA4D1000001E49C /* MarkdownUI in Frameworks */ = {isa = PBXBuildFile; productRef = 09FFEEE22FA4D1000001E49C /* MarkdownUI */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		09FFEEC42FA4BC230001E49C /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -65,6 +69,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				09FFEEE12FA4D1000001E49C /* MarkdownUI in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -125,6 +130,7 @@
 			);
 			name = klaw;
 			packageProductDependencies = (
+				09FFEEE22FA4D1000001E49C /* MarkdownUI */,
 			);
 			productName = klaw;
 			productReference = 09FFEEB22FA4BC220001E49C /* klaw.app */;
@@ -208,6 +214,9 @@
 			);
 			mainGroup = 09FFEEA92FA4BC210001E49C;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				09FFEEE32FA4D1000001E49C /* XCRemoteSwiftPackageReference "swift-markdown-ui" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 09FFEEB32FA4BC220001E49C /* Products */;
 			projectDirPath = "";
@@ -595,6 +604,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		09FFEEE32FA4D1000001E49C /* XCRemoteSwiftPackageReference "swift-markdown-ui" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/gonzalezreal/swift-markdown-ui";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.4.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		09FFEEE22FA4D1000001E49C /* MarkdownUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 09FFEEE32FA4D1000001E49C /* XCRemoteSwiftPackageReference "swift-markdown-ui" */;
+			productName = MarkdownUI;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 09FFEEAA2FA4BC210001E49C /* Project object */;
 }
