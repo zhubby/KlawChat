@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import klaw
+@testable import KlawChat
 
 @MainActor
 struct ChatViewModelTests {

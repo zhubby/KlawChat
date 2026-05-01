@@ -16,50 +16,50 @@
 			containerPortal = 09FFEEAA2FA4BC210001E49C /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = 09FFEEB12FA4BC220001E49C;
-			remoteInfo = klaw;
+			remoteInfo = KlawChat;
 		};
 		09FFEECE2FA4BC230001E49C /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 09FFEEAA2FA4BC210001E49C /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = 09FFEEB12FA4BC220001E49C;
-			remoteInfo = klaw;
+			remoteInfo = KlawChat;
 		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		09FFEEB22FA4BC220001E49C /* klaw.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = klaw.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		09FFEEC32FA4BC230001E49C /* klawTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = klawTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		09FFEECD2FA4BC230001E49C /* klawUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = klawUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		09FFEEB22FA4BC220001E49C /* KlawChat.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = KlawChat.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		09FFEEC32FA4BC230001E49C /* KlawChatTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = KlawChatTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		09FFEECD2FA4BC230001E49C /* KlawChatUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = KlawChatUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		09FFEED52FA4BC230001E49C /* Exceptions for "klaw" folder in "klaw" target */ = {
+		09FFEED52FA4BC230001E49C /* Exceptions for "KlawChat" folder in "KlawChat" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
 			);
-			target = 09FFEEB12FA4BC220001E49C /* klaw */;
+			target = 09FFEEB12FA4BC220001E49C /*/* KlawChat */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		09FFEEB42FA4BC220001E49C /* klaw */ = {
+		09FFEEB42FA4BC220001E49C /*/* KlawChat */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				09FFEED52FA4BC230001E49C /* Exceptions for "klaw" folder in "klaw" target */,
+				09FFEED52FA4BC230001E49C /* Exceptions for "KlawChat" folder in "KlawChat" target */,
 			);
-			path = klaw;
+			path = KlawChat;
 			sourceTree = "<group>";
 		};
-		09FFEEC62FA4BC230001E49C /* klawTests */ = {
+		09FFEEC62FA4BC230001E49C /*/* KlawChatTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = klawTests;
+			path = KlawChatTests;
 			sourceTree = "<group>";
 		};
-		09FFEED02FA4BC230001E49C /* klawUITests */ = {
+		09FFEED02FA4BC230001E49C /*/* KlawChatUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = klawUITests;
+			path = KlawChatUITests;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -93,9 +93,9 @@
 		09FFEEA92FA4BC210001E49C = {
 			isa = PBXGroup;
 			children = (
-				09FFEEB42FA4BC220001E49C /* klaw */,
-				09FFEEC62FA4BC230001E49C /* klawTests */,
-				09FFEED02FA4BC230001E49C /* klawUITests */,
+				09FFEEB42FA4BC220001E49C /*/* KlawChat */,
+				09FFEEC62FA4BC230001E49C /*/* KlawChatTests */,
+				09FFEED02FA4BC230001E49C /*/* KlawChatUITests */,
 				09FFEEB32FA4BC220001E49C /* Products */,
 			);
 			sourceTree = "<group>";
@@ -103,9 +103,9 @@
 		09FFEEB32FA4BC220001E49C /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				09FFEEB22FA4BC220001E49C /* klaw.app */,
-				09FFEEC32FA4BC230001E49C /* klawTests.xctest */,
-				09FFEECD2FA4BC230001E49C /* klawUITests.xctest */,
+				09FFEEB22FA4BC220001E49C /* KlawChat.app */,
+				09FFEEC32FA4BC230001E49C /* KlawChatTests.xctest */,
+				09FFEECD2FA4BC230001E49C /* KlawChatUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -113,9 +113,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		09FFEEB12FA4BC220001E49C /* klaw */ = {
+		09FFEEB12FA4BC220001E49C /*/* KlawChat */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 09FFEED62FA4BC230001E49C /* Build configuration list for PBXNativeTarget "klaw" */;
+			buildConfigurationList = 09FFEED62FA4BC230001E49C /* Build configuration list for PBXNativeTarget "KlawChat" */;
 			buildPhases = (
 				09FFEEAE2FA4BC220001E49C /* Sources */,
 				09FFEEAF2FA4BC220001E49C /* Frameworks */,
@@ -126,19 +126,19 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				09FFEEB42FA4BC220001E49C /* klaw */,
+				09FFEEB42FA4BC220001E49C /*/* KlawChat */,
 			);
-			name = klaw;
+			name = KlawChat;
 			packageProductDependencies = (
 				09FFEEE22FA4D1000001E49C /* MarkdownUI */,
 			);
-			productName = klaw;
-			productReference = 09FFEEB22FA4BC220001E49C /* klaw.app */;
+			productName = KlawChat;
+			productReference = 09FFEEB22FA4BC220001E49C /* KlawChat.app */;
 			productType = "com.apple.product-type.application";
 		};
-		09FFEEC22FA4BC230001E49C /* klawTests */ = {
+		09FFEEC22FA4BC230001E49C /*/* KlawChatTests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 09FFEEDB2FA4BC230001E49C /* Build configuration list for PBXNativeTarget "klawTests" */;
+			buildConfigurationList = 09FFEEDB2FA4BC230001E49C /* Build configuration list for PBXNativeTarget "KlawChatTests" */;
 			buildPhases = (
 				09FFEEBF2FA4BC230001E49C /* Sources */,
 				09FFEEC02FA4BC230001E49C /* Frameworks */,
@@ -150,18 +150,18 @@
 				09FFEEC52FA4BC230001E49C /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				09FFEEC62FA4BC230001E49C /* klawTests */,
+				09FFEEC62FA4BC230001E49C /*/* KlawChatTests */,
 			);
-			name = klawTests;
+			name = KlawChatTests;
 			packageProductDependencies = (
 			);
-			productName = klawTests;
-			productReference = 09FFEEC32FA4BC230001E49C /* klawTests.xctest */;
+			productName = KlawChatTests;
+			productReference = 09FFEEC32FA4BC230001E49C /* KlawChatTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
-		09FFEECC2FA4BC230001E49C /* klawUITests */ = {
+		09FFEECC2FA4BC230001E49C /*/* KlawChatUITests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 09FFEEDE2FA4BC230001E49C /* Build configuration list for PBXNativeTarget "klawUITests" */;
+			buildConfigurationList = 09FFEEDE2FA4BC230001E49C /* Build configuration list for PBXNativeTarget "KlawChatUITests" */;
 			buildPhases = (
 				09FFEEC92FA4BC230001E49C /* Sources */,
 				09FFEECA2FA4BC230001E49C /* Frameworks */,
@@ -173,13 +173,13 @@
 				09FFEECF2FA4BC230001E49C /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				09FFEED02FA4BC230001E49C /* klawUITests */,
+				09FFEED02FA4BC230001E49C /*/* KlawChatUITests */,
 			);
-			name = klawUITests;
+			name = KlawChatUITests;
 			packageProductDependencies = (
 			);
-			productName = klawUITests;
-			productReference = 09FFEECD2FA4BC230001E49C /* klawUITests.xctest */;
+			productName = KlawChatUITests;
+			productReference = 09FFEECD2FA4BC230001E49C /* KlawChatUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
 /* End PBXNativeTarget section */
@@ -205,7 +205,7 @@
 					};
 				};
 			};
-			buildConfigurationList = 09FFEEAD2FA4BC210001E49C /* Build configuration list for PBXProject "klaw" */;
+			buildConfigurationList = 09FFEEAD2FA4BC210001E49C /* Build configuration list for PBXProject "KlawChat" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -222,9 +222,9 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				09FFEEB12FA4BC220001E49C /* klaw */,
-				09FFEEC22FA4BC230001E49C /* klawTests */,
-				09FFEECC2FA4BC230001E49C /* klawUITests */,
+				09FFEEB12FA4BC220001E49C /*/* KlawChat */,
+				09FFEEC22FA4BC230001E49C /*/* KlawChatTests */,
+				09FFEECC2FA4BC230001E49C /*/* KlawChatUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -280,12 +280,12 @@
 /* Begin PBXTargetDependency section */
 		09FFEEC52FA4BC230001E49C /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 09FFEEB12FA4BC220001E49C /* klaw */;
+			target = 09FFEEB12FA4BC220001E49C /*/* KlawChat */;
 			targetProxy = 09FFEEC42FA4BC230001E49C /* PBXContainerItemProxy */;
 		};
 		09FFEECF2FA4BC230001E49C /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 09FFEEB12FA4BC220001E49C /* klaw */;
+			target = 09FFEEB12FA4BC220001E49C /*/* KlawChat */;
 			targetProxy = 09FFEECE2FA4BC230001E49C /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
@@ -296,13 +296,13 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = klaw/klaw.entitlements;
+				CODE_SIGN_ENTITLEMENTS = KlawChat/KlawChat.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 8QA4WZ4RT6;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = klaw/Info.plist;
+				INFOPLIST_FILE = KlawChat/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -313,7 +313,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.zhubby.klaw;
+				PRODUCT_BUNDLE_IDENTIFIER = com.zhubby.KlawChat;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -330,13 +330,13 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = klaw/klaw.entitlements;
+				CODE_SIGN_ENTITLEMENTS = KlawChat/KlawChat.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 8QA4WZ4RT6;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = klaw/Info.plist;
+				INFOPLIST_FILE = KlawChat/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -347,7 +347,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.zhubby.klaw;
+				PRODUCT_BUNDLE_IDENTIFIER = com.zhubby.KlawChat;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -490,7 +490,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.4;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.zhubby.klawTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.zhubby.KlawChatTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -498,7 +498,7 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/klaw.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/klaw";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/KlawChat.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/KlawChat";
 			};
 			name = Debug;
 		};
@@ -512,7 +512,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.4;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.zhubby.klawTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.zhubby.KlawChatTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -520,7 +520,7 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/klaw.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/klaw";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/KlawChat.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/KlawChat";
 			};
 			name = Release;
 		};
@@ -532,7 +532,7 @@
 				DEVELOPMENT_TEAM = 8QA4WZ4RT6;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.zhubby.klawUITests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.zhubby.KlawChatUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -540,7 +540,7 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_TARGET_NAME = klaw;
+				TEST_TARGET_NAME = KlawChat;
 			};
 			name = Debug;
 		};
@@ -552,7 +552,7 @@
 				DEVELOPMENT_TEAM = 8QA4WZ4RT6;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.zhubby.klawUITests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.zhubby.KlawChatUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -560,14 +560,14 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_TARGET_NAME = klaw;
+				TEST_TARGET_NAME = KlawChat;
 			};
 			name = Release;
 		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		09FFEEAD2FA4BC210001E49C /* Build configuration list for PBXProject "klaw" */ = {
+		09FFEEAD2FA4BC210001E49C /* Build configuration list for PBXProject "KlawChat" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				09FFEED92FA4BC230001E49C /* Debug */,
@@ -576,7 +576,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		09FFEED62FA4BC230001E49C /* Build configuration list for PBXNativeTarget "klaw" */ = {
+		09FFEED62FA4BC230001E49C /* Build configuration list for PBXNativeTarget "KlawChat" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				09FFEED72FA4BC230001E49C /* Debug */,
@@ -585,7 +585,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		09FFEEDB2FA4BC230001E49C /* Build configuration list for PBXNativeTarget "klawTests" */ = {
+		09FFEEDB2FA4BC230001E49C /* Build configuration list for PBXNativeTarget "KlawChatTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				09FFEEDC2FA4BC230001E49C /* Debug */,
@@ -594,7 +594,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		09FFEEDE2FA4BC230001E49C /* Build configuration list for PBXNativeTarget "klawUITests" */ = {
+		09FFEEDE2FA4BC230001E49C /* Build configuration list for PBXNativeTarget "KlawChatUITests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				09FFEEDF2FA4BC230001E49C /* Debug */,

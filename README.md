@@ -1,4 +1,4 @@
-# Klaw
+# KlawChat
 
 一个为 Claude Code 设计的 macOS 原生聊天客户端，支持通过 Gateway 协议与 AI Agent 进行实时通信。
 
@@ -27,8 +27,8 @@
 ## 项目结构
 
 ```
-klaw/
-├── klawApp.swift              # 应用入口
+KlawChat/
+├── KlawChatApp.swift          # 应用入口
 ├── ContentView.swift          # 主界面
 ├── ChatModels.swift           # 数据模型定义
 ├── ChatViewModel.swift        # 聊天业务逻辑
@@ -38,21 +38,21 @@ klaw/
 ├── GatewaySettings.swift      # 设置存储管理
 └── JSONValue.swift            # JSON 解析辅助
 
-klawTests/
+KlawChatTests/
 └── ChatViewModelTests.swift   # 单元测试
 ```
 
 ## 使用方法
 
 1. 克隆项目到本地
-2. 在 Xcode 中打开 `klaw.xcodeproj`
+2. 在 Xcode 中打开 `KlawChat.xcodeproj`
 3. 构建并运行 (Cmd+R)
 4. 点击连接按钮配置 Gateway 地址和 Token
 5. 开始与 AI Agent 对话
 
 ## Gateway 协议
 
-Klaw 使用 Claude Code 的 Gateway WebSocket 协议进行通信，支持：
+KlawChat 使用 Claude Code 的 Gateway WebSocket 协议进行通信，支持：
 
 - **工作空间同步**：自动获取可用的 Agent 列表
 - **会话管理**：创建、加入和管理聊天会话

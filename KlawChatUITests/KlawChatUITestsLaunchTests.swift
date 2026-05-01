@@ -1,13 +1,13 @@
 //
-//  klawUITestsLaunchTests.swift
-//  klawUITests
+//  KlawChatUITestsLaunchTests.swift
+//  KlawChatUITests
 //
 //  Created by zhubby on 2026/5/1.
 //
 
 import XCTest
 
-final class klawUITestsLaunchTests: XCTestCase {
+final class KlawChatUITestsLaunchTests: XCTestCase {
 
     override class var runsForEachTargetApplicationUIConfiguration: Bool {
         true
