@@ -47,6 +47,18 @@ struct ChatViewModelTests {
         #expect(viewModel.selectedSessionKey == "older")
     }
 
+    @Test func emptyBootstrapResultMarksWorkspaceLoaded() async {
+        let repository = MockChatRepository()
+        let viewModel = ChatViewModel(repository: repository)
+
+        viewModel.connect()
+        await Task.yield()
+        viewModel.apply(frame: .result(id: repository.bootstrapRequestID, result: [:]))
+
+        #expect(viewModel.isWorkspaceLoaded == true)
+        #expect(viewModel.sessions.isEmpty)
+    }
+
     @Test func historyMessagesArePrependedAndDeduplicated() {
         let viewModel = ChatViewModel(repository: MockChatRepository())
         viewModel.apply(frame: .result(id: "bootstrap", result: [
@@ -213,6 +225,7 @@ struct ChatViewModelTests {
 private final class MockChatRepository: ChatRepositoryProtocol {
     var frames: AsyncStream<ServerFrame> { AsyncStream { _ in } }
     var settings = GatewaySettings.defaults
+    let bootstrapRequestID = "bootstrap-request"
     var createdSessionRequestCount = 0
 
     func save(settings: GatewaySettings) {
@@ -221,7 +234,7 @@ private final class MockChatRepository: ChatRepositoryProtocol {
 
     func connect(settings: GatewaySettings) async throws {}
     func disconnect() {}
-    func bootstrap() async throws {}
+    func bootstrap() async throws -> String { bootstrapRequestID }
     func listProviders() async throws {}
     func createSession() async throws {
         createdSessionRequestCount += 1

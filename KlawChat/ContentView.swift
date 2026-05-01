@@ -89,7 +89,6 @@ private struct AgentListView: View {
                 }
             }
         }
-        .navigationTitle("Klaw Agents")
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 Button {
@@ -153,13 +152,6 @@ private struct ConnectionHeaderView: View {
                     .foregroundStyle(.secondary)
             }
 
-            Toggle("Stream replies", isOn: Binding(
-                get: { viewModel.settings.streamEnabled },
-                set: {
-                    viewModel.settings.streamEnabled = $0
-                    viewModel.saveSettings()
-                }
-            ))
         }
         .padding(.vertical, 4)
     }
@@ -479,6 +471,7 @@ private struct AgentSettingsView: View {
 private struct GatewaySettingsView: View {
     @EnvironmentObject private var viewModel: ChatViewModel
     @Environment(\.dismiss) private var dismiss
+    @State private var isTokenVisible = false
 
     var body: some View {
         NavigationStack {
@@ -487,8 +480,24 @@ private struct GatewaySettingsView: View {
                     TextField("Base URL", text: $viewModel.settings.baseURLString)
                         .textInputAutocapitalization(.never)
                         .keyboardType(.URL)
-                    SecureField("Token", text: $viewModel.settings.token)
+                    HStack {
+                        Group {
+                            if isTokenVisible {
+                                TextField("Token", text: $viewModel.settings.token)
+                            } else {
+                                SecureField("Token", text: $viewModel.settings.token)
+                            }
+                        }
                         .textInputAutocapitalization(.never)
+
+                        Button {
+                            isTokenVisible.toggle()
+                        } label: {
+                            Image(systemName: isTokenVisible ? "eye.slash" : "eye")
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(isTokenVisible ? "Hide token" : "Show token")
+                    }
                 }
                 Section {
                     Toggle("Stream replies", isOn: $viewModel.settings.streamEnabled)
@@ -535,7 +544,7 @@ private final class PreviewChatRepository: ChatRepositoryProtocol {
     func save(settings: GatewaySettings) {}
     func connect(settings: GatewaySettings) async throws {}
     func disconnect() {}
-    func bootstrap() async throws {}
+    func bootstrap() async throws -> String { "preview-bootstrap" }
     func listProviders() async throws {}
     func createSession() async throws {}
     func updateSession(sessionKey: String, title: String, modelProvider: String?, model: String?) async throws {}

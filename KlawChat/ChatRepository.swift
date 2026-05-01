@@ -7,7 +7,7 @@ protocol ChatRepositoryProtocol {
     func save(settings: GatewaySettings)
     func connect(settings: GatewaySettings) async throws
     func disconnect()
-    func bootstrap() async throws
+    func bootstrap() async throws -> String
     func listProviders() async throws
     func createSession() async throws
     func updateSession(sessionKey: String, title: String, modelProvider: String?, model: String?) async throws
@@ -50,8 +50,8 @@ final class ChatRepository: ChatRepositoryProtocol {
         client.disconnect()
     }
 
-    func bootstrap() async throws {
-        _ = try await client.send(method: "workspace.bootstrap", params: [:])
+    func bootstrap() async throws -> String {
+        try await client.send(method: "workspace.bootstrap", params: [:])
     }
 
     func listProviders() async throws {

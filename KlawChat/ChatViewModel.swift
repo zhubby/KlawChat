@@ -21,6 +21,7 @@ final class ChatViewModel: ObservableObject {
     private var subscribedSessionKeys: Set<String> = []
     private var oldestLoadedMessageIDs: [String: String] = [:]
     private var historyHasMore: [String: Bool] = [:]
+    private var bootstrapRequestID: String?
     private var createSessionRequestID: UUID?
     private var activeStreamRequestIDs: [String: String] = [:]
 
@@ -61,6 +62,8 @@ final class ChatViewModel: ObservableObject {
     func connect() {
         connectionState = .connecting
         errorMessage = nil
+        isWorkspaceLoaded = false
+        bootstrapRequestID = nil
         saveSettings()
         frameTask?.cancel()
         frameTask = Task { [weak self] in
@@ -71,7 +74,7 @@ final class ChatViewModel: ObservableObject {
             do {
                 try await repository.connect(settings: settings)
                 connectionState = .connected
-                try await repository.bootstrap()
+                bootstrapRequestID = try await repository.bootstrap()
                 try await repository.listProviders()
             } catch {
                 show(error)
@@ -84,6 +87,7 @@ final class ChatViewModel: ObservableObject {
         connectionState = .disconnected
         isWorkspaceLoaded = false
         isCreatingSession = false
+        bootstrapRequestID = nil
         createSessionRequestID = nil
         activeStreamRequestIDs.removeAll()
         subscribedSessionKeys.removeAll()
@@ -209,8 +213,8 @@ final class ChatViewModel: ObservableObject {
 
     func apply(frame: ServerFrame) {
         switch frame {
-        case .result(_, let result):
-            apply(result: result)
+        case .result(let id, let result):
+            apply(result: result, id: id)
         case .event(let event, let payload):
             apply(event: event, payload: payload)
         case .error(_, let error):
@@ -261,12 +265,21 @@ final class ChatViewModel: ObservableObject {
         }
     }
 
-    private func apply(result: [String: JSONValue]) {
+    private func apply(result: [String: JSONValue], id: String) {
         if let sessionValues = result.array("sessions") {
             let parsedSessions = sessionValues.compactMap { $0.objectValue?.workspaceSession }
             sessions = parsedSessions.sorted { $0.createdAtMilliseconds > $1.createdAtMilliseconds }
             isWorkspaceLoaded = true
+            if id == bootstrapRequestID {
+                bootstrapRequestID = nil
+            }
             selectInitialSession(activeSessionKey: result.string("active_session_key"))
+            return
+        }
+
+        if id == bootstrapRequestID {
+            isWorkspaceLoaded = true
+            bootstrapRequestID = nil
             return
         }
 
