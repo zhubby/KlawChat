@@ -72,9 +72,9 @@ final class URLSessionGatewayWebSocketClient: GatewayWebSocketClientProtocol {
     }
 
     private func receiveLoop(_ task: URLSessionWebSocketTask) {
-        task.receive { [weak self, weak task] result in
-            Task { @MainActor in
-                guard let self, let task, self.task === task else { return }
+        task.receive { result in
+            Task { @MainActor [weak self, task] in
+                guard let self, self.task === task else { return }
                 switch result {
                 case .success(let message):
                     if let frame = self.decode(message) {
