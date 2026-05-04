@@ -14,7 +14,7 @@ protocol ChatRepositoryProtocol {
     func updateSession(sessionKey: String, title: String, modelProvider: String?, model: String?) async throws
     func deleteSession(sessionKey: String) async throws
     func subscribe(sessionKey: String) async throws
-    func loadHistory(sessionKey: String, beforeMessageID: String?, limit: Int) async throws
+    func loadHistory(sessionKey: String, beforeMessageID: String?, limit: Int) async throws -> [String: JSONValue]
     func submit(
         sessionKey: String,
         input: String,
@@ -129,12 +129,16 @@ final class ChatRepository: ChatRepositoryProtocol {
         ])
     }
 
-    func loadHistory(sessionKey: String, beforeMessageID: String?, limit: Int = 30) async throws {
-        _ = try await client.send(method: "thread/history", params: [
-            "session_key": .string(sessionKey),
-            "before_message_id": beforeMessageID.map(JSONValue.string) ?? .null,
-            "limit": .number(Double(limit))
-        ])
+    func loadHistory(sessionKey: String, beforeMessageID: String?, limit: Int = 30) async throws -> [String: JSONValue] {
+        try await client.sendAndWaitResult(
+            method: "thread/history",
+            params: [
+                "session_key": .string(sessionKey),
+                "before_message_id": beforeMessageID.map(JSONValue.string) ?? .null,
+                "limit": .number(Double(limit))
+            ],
+            timeoutNanoseconds: 5_000_000_000
+        )
     }
 
     func submit(
@@ -191,7 +195,7 @@ final class ChatRepository: ChatRepositoryProtocol {
             "request_id": .string(requestID),
             "thread_id": .string(threadID),
             "turn_id": .string(turnID),
-            "input": .string(input)
+            "answers": .string(input)
         ])
     }
 }

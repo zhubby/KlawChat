@@ -116,6 +116,9 @@ private struct AgentListView: View {
                 viewModel.connect()
             }
         }
+        .refreshable {
+            await viewModel.refreshSessions()
+        }
     }
 }
 
@@ -248,6 +251,7 @@ private struct ChatDetailView: View {
 private struct PendingServerRequestsView: View {
     @EnvironmentObject private var viewModel: ChatViewModel
     let requests: [PendingServerRequest]
+    @State private var userInputDrafts: [String: String] = [:]
 
     var body: some View {
         if !requests.isEmpty {
@@ -259,16 +263,30 @@ private struct PendingServerRequestsView: View {
                             .foregroundStyle(.secondary)
                         Text(request.prompt)
                             .font(.footnote)
-                        HStack {
-                            Button("Reject") {
-                                viewModel.respondToServerRequest(request, decision: "reject")
+                        if request.isUserInputRequest {
+                            HStack(alignment: .bottom, spacing: 8) {
+                                TextField("Reply to agent", text: binding(for: request))
+                                    .textFieldStyle(.roundedBorder)
+                                Button("Send") {
+                                    let input = userInputDrafts[request.requestID]?.nilIfBlank ?? ""
+                                    viewModel.respondToServerRequest(request, decision: input)
+                                    userInputDrafts[request.requestID] = nil
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .disabled(userInputDrafts[request.requestID]?.nilIfBlank == nil)
                             }
-                            .buttonStyle(.bordered)
+                        } else {
+                            HStack {
+                                Button("Reject") {
+                                    viewModel.respondToServerRequest(request, decision: "reject")
+                                }
+                                .buttonStyle(.bordered)
 
-                            Button("Accept") {
-                                viewModel.respondToServerRequest(request, decision: "accept")
+                                Button("Accept") {
+                                    viewModel.respondToServerRequest(request, decision: "accept")
+                                }
+                                .buttonStyle(.borderedProminent)
                             }
-                            .buttonStyle(.borderedProminent)
                         }
                     }
                     .padding(10)
@@ -282,6 +300,13 @@ private struct PendingServerRequestsView: View {
             .background(.bar)
         }
     }
+
+    private func binding(for request: PendingServerRequest) -> Binding<String> {
+        Binding(
+            get: { userInputDrafts[request.requestID, default: ""] },
+            set: { userInputDrafts[request.requestID] = $0 }
+        )
+    }
 }
 
 private struct MessageListView: View {
@@ -292,7 +317,10 @@ private struct MessageListView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(spacing: 14) {
-                    if messages.isEmpty {
+                    if messages.isEmpty && viewModel.isLoadingHistory {
+                        HistoryLoadingView()
+                            .padding(.top, 80)
+                    } else if messages.isEmpty {
                         ContentUnavailableView(
                             "Start the Conversation",
                             systemImage: "sparkles",
@@ -338,6 +366,18 @@ private struct MessageListView: View {
                 scroll()
             }
         }
+    }
+}
+
+private struct HistoryLoadingView: View {
+    var body: some View {
+        VStack(spacing: 12) {
+            ProgressView()
+            Text("Loading conversation...")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
     }
 }
 
@@ -627,7 +667,13 @@ private final class PreviewChatRepository: ChatRepositoryProtocol {
     func updateSession(sessionKey: String, title: String, modelProvider: String?, model: String?) async throws {}
     func deleteSession(sessionKey: String) async throws {}
     func subscribe(sessionKey: String) async throws {}
-    func loadHistory(sessionKey: String, beforeMessageID: String?, limit: Int) async throws {}
+    func loadHistory(sessionKey: String, beforeMessageID: String?, limit: Int) async throws -> [String: JSONValue] {
+        [
+            "session_key": .string(sessionKey),
+            "messages": .array([]),
+            "has_more": .bool(false)
+        ]
+    }
     func submit(sessionKey: String, input: String, stream: Bool, route: ModelRoute, attachments: [ArchiveAttachment]) async throws {}
     func cancelTurn(sessionKey: String, threadID: String, turnID: String) async throws {}
     func respondToApproval(requestID: String, threadID: String, turnID: String, decision: String) async throws {}

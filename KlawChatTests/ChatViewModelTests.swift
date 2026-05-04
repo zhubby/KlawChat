@@ -150,6 +150,37 @@ struct ChatViewModelTests {
         #expect(viewModel.selectedSessionKey == nil)
     }
 
+    @Test func refreshSessionsReloadsAgentListWhenConnected() async {
+        let repository = MockChatRepository()
+        repository.bootstrapResult = [
+            "sessions": .array([
+                .object([
+                    "session_key": .string("old"),
+                    "title": .string("Old"),
+                    "created_at_ms": .number(1)
+                ])
+            ])
+        ]
+        let viewModel = ChatViewModel(repository: repository)
+        viewModel.connect()
+        await Task.yield()
+        repository.bootstrapResult = [
+            "sessions": .array([
+                .object([
+                    "session_key": .string("new"),
+                    "title": .string("New"),
+                    "created_at_ms": .number(2)
+                ])
+            ])
+        ]
+
+        await viewModel.refreshSessions()
+
+        #expect(repository.bootstrapRequestCount == 2)
+        #expect(viewModel.sessions.map(\.sessionKey) == ["new"])
+        #expect(viewModel.isWorkspaceLoaded == true)
+    }
+
     @Test func historyMessagesArePrependedAndDeduplicated() {
         let viewModel = ChatViewModel(repository: MockChatRepository())
         seedSession("s1", in: viewModel)
@@ -186,6 +217,48 @@ struct ChatViewModelTests {
         ]))
 
         #expect(viewModel.selectedMessages.map(\.text) == ["old", "new"])
+    }
+
+    @Test func selectingSessionLoadsHistoryThroughRepositoryResult() async {
+        let repository = MockChatRepository()
+        repository.historyResult = [
+            "session_key": .string("s1"),
+            "messages": .array([
+                .object([
+                    "role": .string("user"),
+                    "content": .string("previous question"),
+                    "timestamp_ms": .number(1),
+                    "message_id": .string("m1")
+                ]),
+                .object([
+                    "role": .string("assistant"),
+                    "content": .string("previous answer"),
+                    "timestamp_ms": .number(2),
+                    "message_id": .string("m2")
+                ])
+            ]),
+            "has_more": .bool(false),
+            "oldest_loaded_message_id": .string("m1")
+        ]
+        let viewModel = ChatViewModel(repository: repository)
+        viewModel.apply(frame: .result(id: "bootstrap", result: [
+            "sessions": .array([
+                .object([
+                    "session_key": .string("s1"),
+                    "title": .string("Agent"),
+                    "created_at_ms": .number(1)
+                ])
+            ])
+        ]))
+
+        viewModel.selectSession(viewModel.sessions[0])
+        await Task.yield()
+
+        #expect(repository.loadedHistoryRequests == [
+            HistoryRequest(sessionKey: "s1", beforeMessageID: nil, limit: 30)
+        ])
+        #expect(viewModel.selectedMessages.map(\.text) == ["previous question", "previous answer"])
+        #expect(viewModel.isLoadingHistory == false)
     }
 
     @Test func v1AgentMessageDeltaUpdatesAssistantDraftAndTurnCompletedFinalizesIt() {
@@ -308,6 +381,30 @@ struct ChatViewModelTests {
         ])
     }
 
+    @Test func toolRequestUserInputRespondsWithUserInput() async {
+        let repository = MockChatRepository()
+        let viewModel = ChatViewModel(repository: repository)
+        seedSession("s1", in: viewModel)
+
+        viewModel.apply(frame: .serverRequest(id: "srv-2", method: "tool/requestUserInput", params: [
+            "request_id": .string("srv-2"),
+            "thread_id": .string("s1"),
+            "turn_id": .string("t1"),
+            "prompt": .string("Need more details")
+        ]))
+
+        #expect(viewModel.pendingServerRequests.count == 1)
+        #expect(viewModel.pendingServerRequests.first?.kindLabel == "Input Requested")
+
+        viewModel.respondToServerRequest(viewModel.pendingServerRequests[0], decision: "more context")
+        await Task.yield()
+
+        #expect(repository.userInputResponses == [
+            UserInputResponse(requestID: "srv-2", threadID: "s1", turnID: "t1", input: "more context")
+        ])
+        #expect(viewModel.pendingServerRequests.isEmpty)
+    }
+
     @Test func createSessionResultClearsPendingState() {
         let viewModel = ChatViewModel(repository: MockChatRepository())
         viewModel.apply(frame: .result(id: "bootstrap", result: ["sessions": .array([])]))
@@ -339,6 +436,50 @@ struct ChatViewModelTests {
         ])
         #expect(viewModel.selectedMessages.first?.role == .user)
         #expect(viewModel.selectedMessages.first?.text == "hello")
+    }
+
+    @Test func sendDraftRefreshesHistoryWhenRealtimeCompletionIsMissing() async {
+        let repository = MockChatRepository()
+        repository.historyResult = [
+            "session_key": .string("s1"),
+            "messages": .array([
+                .object([
+                    "role": .string("user"),
+                    "content": .string("hello"),
+                    "timestamp_ms": .number(1),
+                    "message_id": .string("user-1")
+                ]),
+                .object([
+                    "role": .string("assistant"),
+                    "content": .string("reply from history"),
+                    "timestamp_ms": .number(2),
+                    "message_id": .string("assistant-1")
+                ])
+            ]),
+            "has_more": .bool(false),
+            "oldest_loaded_message_id": .string("user-1")
+        ]
+        let viewModel = ChatViewModel(repository: repository)
+        viewModel.apply(frame: .result(id: "bootstrap", result: [
+            "sessions": .array([
+                .object([
+                    "session_key": .string("s1"),
+                    "title": .string("Agent"),
+                    "created_at_ms": .number(1)
+                ])
+            ])
+        ]))
+        viewModel.selectedSessionKey = "s1"
+        viewModel.draft = "hello"
+
+        viewModel.sendDraft()
+        await waitForMessages(["hello", "reply from history"], in: viewModel)
+
+        #expect(viewModel.selectedMessages.map(\.text) == ["hello", "reply from history"])
+        #expect(viewModel.selectedMessages.last?.isStreaming == false)
+        #expect(repository.loadedHistoryRequests.contains(
+            HistoryRequest(sessionKey: "s1", beforeMessageID: nil, limit: 30)
+        ))
     }
 
     @Test func repositoryBuildsV1TurnStartParams() async throws {
@@ -386,7 +527,7 @@ struct ChatViewModelTests {
         #expect(client.sentParams[0]["turn_id"] == .string("t1"))
         #expect(client.sentParams[1]["decision"] == .string("reject"))
         #expect(client.sentParams[2]["result"] == .object(["ok": .bool(true)]))
-        #expect(client.sentParams[3]["input"] == .string("more context"))
+        #expect(client.sentParams[3]["answers"] == .string("more context"))
     }
 
     private func seedSession(_ sessionKey: String, in viewModel: ChatViewModel) {
@@ -403,6 +544,16 @@ struct ChatViewModelTests {
             viewModel.selectSession(session)
         }
     }
+
+    private func waitForMessages(_ expected: [String], in viewModel: ChatViewModel) async {
+        for _ in 0..<20 {
+            if viewModel.selectedMessages.map(\.text) == expected {
+                return
+            }
+            try? await Task.sleep(nanoseconds: 10_000_000)
+        }
+    }
+
 }
 
 private final class MockChatRepository: ChatRepositoryProtocol {
@@ -413,8 +564,16 @@ private final class MockChatRepository: ChatRepositoryProtocol {
     var providerListRequestCount = 0
     var createdSessionRequestCount = 0
     var approvalResponses: [ApprovalResponse] = []
+    var userInputResponses: [UserInputResponse] = []
     var cancelledTurns: [TurnReference] = []
     var submittedTurns: [SubmittedTurn] = []
+    var bootstrapResult: [String: JSONValue] = ["sessions": .array([])]
+    var historyResult: [String: JSONValue] = [
+        "session_key": .string("s1"),
+        "messages": .array([]),
+        "has_more": .bool(false)
+    ]
+    var loadedHistoryRequests: [HistoryRequest] = []
 
     func save(settings: GatewaySettings) {
         self.settings = settings
@@ -427,7 +586,7 @@ private final class MockChatRepository: ChatRepositoryProtocol {
     }
     func bootstrap() async throws -> [String: JSONValue] {
         bootstrapRequestCount += 1
-        return ["sessions": .array([])]
+        return bootstrapResult
     }
     func listProviders() async throws -> [String: JSONValue] {
         providerListRequestCount += 1
@@ -439,7 +598,10 @@ private final class MockChatRepository: ChatRepositoryProtocol {
     func updateSession(sessionKey: String, title: String, modelProvider: String?, model: String?) async throws {}
     func deleteSession(sessionKey: String) async throws {}
     func subscribe(sessionKey: String) async throws {}
-    func loadHistory(sessionKey: String, beforeMessageID: String?, limit: Int) async throws {}
+    func loadHistory(sessionKey: String, beforeMessageID: String?, limit: Int) async throws -> [String: JSONValue] {
+        loadedHistoryRequests.append(HistoryRequest(sessionKey: sessionKey, beforeMessageID: beforeMessageID, limit: limit))
+        return historyResult
+    }
     func submit(sessionKey: String, input: String, stream: Bool, route: ModelRoute, attachments: [ArchiveAttachment]) async throws {
         submittedTurns.append(SubmittedTurn(sessionKey: sessionKey, input: input, stream: stream))
     }
@@ -450,13 +612,28 @@ private final class MockChatRepository: ChatRepositoryProtocol {
         approvalResponses.append(ApprovalResponse(requestID: requestID, threadID: threadID, turnID: turnID, decision: decision))
     }
     func respondToTool(requestID: String, threadID: String, turnID: String, result: [String: JSONValue]) async throws {}
-    func respondToUserInput(requestID: String, threadID: String, turnID: String, input: String) async throws {}
+    func respondToUserInput(requestID: String, threadID: String, turnID: String, input: String) async throws {
+        userInputResponses.append(UserInputResponse(requestID: requestID, threadID: threadID, turnID: turnID, input: input))
+    }
 }
 
 private struct SubmittedTurn: Equatable {
     var sessionKey: String
     var input: String
     var stream: Bool
+}
+
+private struct UserInputResponse: Equatable {
+    var requestID: String
+    var threadID: String
+    var turnID: String
+    var input: String
+}
+
+private struct HistoryRequest: Equatable {
+    var sessionKey: String
+    var beforeMessageID: String?
+    var limit: Int
 }
 
 private final class MockWebSocketClient: GatewayWebSocketClientProtocol {

@@ -117,6 +117,20 @@ final class ChatViewModel: ObservableObject {
         repository.save(settings: settings)
     }
 
+    func refreshSessions() async {
+        guard connectionState == .connected else {
+            return
+        }
+
+        do {
+            errorMessage = nil
+            let sessionsResult = try await repository.bootstrap()
+            apply(result: sessionsResult, id: "session/list")
+        } catch {
+            show(error)
+        }
+    }
+
     func createSession() {
         guard canCreateSession else {
             if connectionState != .connected {
@@ -223,6 +237,7 @@ final class ChatViewModel: ObservableObject {
                     route: route,
                     attachments: []
                 )
+                await reconcileSubmittedTurnFromHistory(sessionKey: selectedSessionKey)
             } catch {
                 draft = text
                 removeEmptyStreamingMessage(sessionKey: selectedSessionKey)
@@ -264,13 +279,14 @@ final class ChatViewModel: ObservableObject {
                         turnID: request.turnID,
                         result: ["decision": .string(decision)]
                     )
-                case "user_input/request":
+                case "tool/requestUserInput", "user_input/request":
                     try await repository.respondToUserInput(
                         requestID: request.requestID,
                         threadID: request.threadID,
                         turnID: request.turnID,
                         input: decision
                     )
+                    try await refreshLatestHistory(sessionKey: request.threadID)
                 default:
                     break
                 }
@@ -325,14 +341,48 @@ final class ChatViewModel: ObservableObject {
         isLoadingHistory = true
         Task {
             do {
-                try await repository.loadHistory(
+                let result = try await repository.loadHistory(
                     sessionKey: sessionKey,
                     beforeMessageID: beforeMessageID,
                     limit: 30
                 )
+                apply(result: result, id: "thread/history")
             } catch {
                 isLoadingHistory = false
                 show(error)
+            }
+        }
+    }
+
+    private func refreshLatestHistory(sessionKey: String) async throws {
+        let result = try await repository.loadHistory(
+            sessionKey: sessionKey,
+            beforeMessageID: nil,
+            limit: 30
+        )
+        mergeLatestHistory(result, sessionKey: result.string("session_key") ?? sessionKey)
+    }
+
+    private func reconcileSubmittedTurnFromHistory(sessionKey: String) async {
+        let retryDelays: [UInt64] = [
+            0,
+            1_000_000_000,
+            2_000_000_000,
+            3_000_000_000,
+            5_000_000_000
+        ]
+
+        for delay in retryDelays {
+            if Task.isCancelled || !hasPendingStreamingAssistant(sessionKey: sessionKey) {
+                return
+            }
+            if delay > 0 {
+                try? await Task.sleep(nanoseconds: delay)
+            }
+            do {
+                try await refreshLatestHistory(sessionKey: sessionKey)
+            } catch {
+                return
             }
         }
     }
@@ -542,6 +592,86 @@ final class ChatViewModel: ObservableObject {
         oldestLoadedMessageIDs[sessionKey] = result.string("oldest_loaded_message_id")
     }
 
+    private func mergeLatestHistory(_ result: [String: JSONValue], sessionKey: String) {
+        guard let values = result.array("messages") else { return }
+        let serverMessages = parsedHistoryMessages(values)
+        guard !serverMessages.isEmpty else { return }
+
+        var current = messagesBySession[sessionKey, default: []]
+        var consumedLocalIDs = Set<String>()
+        var didMergeAssistantResponse = false
+
+        for serverMessage in serverMessages {
+            if let messageID = serverMessage.messageID,
+               let index = current.firstIndex(where: { $0.messageID == messageID }) {
+                current[index] = serverMessage
+                consumedLocalIDs.insert(current[index].id)
+                didMergeAssistantResponse = didMergeAssistantResponse || serverMessage.role == .assistant
+                continue
+            }
+
+            if let index = current.firstIndex(where: {
+                !consumedLocalIDs.contains($0.id)
+                    && $0.messageID == nil
+                    && $0.role == serverMessage.role
+                    && $0.text == serverMessage.text
+            }) {
+                current[index].messageID = serverMessage.messageID
+                current[index].timestampMilliseconds = serverMessage.timestampMilliseconds
+                current[index].metadata = serverMessage.metadata
+                current[index].isStreaming = false
+                consumedLocalIDs.insert(current[index].id)
+                didMergeAssistantResponse = didMergeAssistantResponse || serverMessage.role == .assistant
+                continue
+            }
+
+            if serverMessage.role == .assistant,
+               let index = current.firstIndex(where: {
+                   !consumedLocalIDs.contains($0.id)
+                       && $0.role == .assistant
+                       && $0.isStreaming
+               }) {
+                current[index].text = serverMessage.text
+                current[index].messageID = serverMessage.messageID
+                current[index].timestampMilliseconds = serverMessage.timestampMilliseconds
+                current[index].metadata = serverMessage.metadata
+                current[index].isStreaming = false
+                consumedLocalIDs.insert(current[index].id)
+                didMergeAssistantResponse = true
+                continue
+            }
+
+            current.append(serverMessage)
+            didMergeAssistantResponse = didMergeAssistantResponse || serverMessage.role == .assistant
+        }
+
+        if didMergeAssistantResponse {
+            current.removeAll { $0.role == .assistant && $0.isStreaming && $0.text.isEmpty }
+        }
+
+        messagesBySession[sessionKey] = current
+        isLoadingHistory = false
+        historyHasMore[sessionKey] = result.bool("has_more") ?? historyHasMore[sessionKey, default: false]
+        oldestLoadedMessageIDs[sessionKey] = result.string("oldest_loaded_message_id") ?? oldestLoadedMessageIDs[sessionKey]
+    }
+
+    private func parsedHistoryMessages(_ values: [JSONValue]) -> [ChatMessage] {
+        values.compactMap { value -> ChatMessage? in
+            guard let object = value.objectValue,
+                  let role = MessageRole(rawValue: object.string("role") ?? "assistant"),
+                  let content = object.string("content") else {
+                return nil
+            }
+            return ChatMessage(
+                role: role,
+                text: content,
+                timestampMilliseconds: object.int("timestamp_ms") ?? nowMilliseconds(),
+                messageID: object.string("message_id"),
+                metadata: object.object("metadata") ?? [:]
+            )
+        }
+    }
+
     private func appendStreamDelta(_ delta: String, sessionKey: String, itemID: String?) {
         guard !delta.isEmpty else { return }
         var messages = messagesBySession[sessionKey, default: []]
@@ -608,6 +738,12 @@ final class ChatViewModel: ObservableObject {
     private func removeEmptyStreamingMessage(sessionKey: String) {
         messagesBySession[sessionKey, default: []].removeAll {
             $0.role == .assistant && $0.isStreaming && $0.text.isEmpty
+        }
+    }
+
+    private func hasPendingStreamingAssistant(sessionKey: String) -> Bool {
+        messagesBySession[sessionKey, default: []].contains {
+            $0.role == .assistant && $0.isStreaming
         }
     }
 

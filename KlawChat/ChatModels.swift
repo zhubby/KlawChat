@@ -178,13 +178,17 @@ struct PendingServerRequest: Identifiable, Equatable, Sendable {
 
     var id: String { requestID }
 
+    var isUserInputRequest: Bool {
+        method == "tool/requestUserInput" || method == "user_input/request"
+    }
+
     var kindLabel: String {
         switch method {
         case "approval/request":
             return "Approval"
         case "tool/request":
             return "Tool Request"
-        case "user_input/request":
+        case _ where isUserInputRequest:
             return "Input Requested"
         default:
             return "Server Request"
