@@ -39,7 +39,7 @@ enum GatewayWebSocketError: LocalizedError {
 }
 
 final class URLSessionGatewayWebSocketClient: GatewayWebSocketClientProtocol {
-    private static let gatewayMaximumTextFrameBytes = 1_048_576
+    private static let gatewayMaximumTextFrameBytes = 16 * 1_024 * 1_024
 
     private var task: URLSessionWebSocketTask?
     private let session: URLSession

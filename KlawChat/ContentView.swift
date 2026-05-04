@@ -217,8 +217,11 @@ private struct ChatDetailView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            MessageListView(messages: viewModel.selectedMessages)
-            PendingServerRequestsView(requests: viewModel.pendingServerRequestsForSelectedSession)
+            MessageListView(
+                sessionKey: session.sessionKey,
+                messages: viewModel.messages(for: session.sessionKey)
+            )
+            PendingServerRequestsView(requests: viewModel.pendingServerRequests(for: session.sessionKey))
             Divider()
             ComposerView()
         }
@@ -226,7 +229,7 @@ private struct ChatDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                if viewModel.activeTurnForSelectedSession != nil {
+                if viewModel.activeTurn(for: session.sessionKey) != nil {
                     Button("Cancel Turn") {
                         viewModel.cancelCurrentTurn()
                     }
@@ -235,7 +238,7 @@ private struct ChatDetailView: View {
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
-                    configuredSession = viewModel.selectedSession ?? session
+                    configuredSession = session
                 } label: {
                     Image(systemName: "slider.horizontal.3")
                 }
@@ -311,6 +314,7 @@ private struct PendingServerRequestsView: View {
 
 private struct MessageListView: View {
     @EnvironmentObject private var viewModel: ChatViewModel
+    let sessionKey: String
     let messages: [ChatMessage]
 
     var body: some View {
@@ -328,11 +332,11 @@ private struct MessageListView: View {
                         )
                         .padding(.top, 80)
                     } else {
-                        Button("Load older messages") {
-                            viewModel.loadOlderHistory()
+                        if viewModel.isLoadingHistory {
+                            ProgressView()
+                                .scaleEffect(0.8)
+                                .padding(.vertical, 4)
                         }
-                        .font(.footnote)
-                        .disabled(viewModel.isLoadingHistory)
 
                         ForEach(messages) { message in
                             MessageBubbleView(message: message)
@@ -341,6 +345,9 @@ private struct MessageListView: View {
                     }
                 }
                 .padding()
+            }
+            .refreshable {
+                viewModel.loadOlderHistory(sessionKey: sessionKey)
             }
             .onChange(of: messages.count) { _, _ in
                 scrollToBottom(proxy: proxy)

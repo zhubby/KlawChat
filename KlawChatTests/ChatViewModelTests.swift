@@ -219,6 +219,33 @@ struct ChatViewModelTests {
         #expect(viewModel.selectedMessages.map(\.text) == ["old", "new"])
     }
 
+    @Test func historyMessagesAreDisplayedInTimelineOrderWhenServerReturnsNewestFirst() {
+        let viewModel = ChatViewModel(repository: MockChatRepository())
+        seedSession("s1", in: viewModel)
+
+        viewModel.apply(frame: .result(id: "history", result: [
+            "session_key": .string("s1"),
+            "messages": .array([
+                .object([
+                    "role": .string("assistant"),
+                    "content": .string("answer"),
+                    "timestamp_ms": .number(20),
+                    "message_id": .string("m2")
+                ]),
+                .object([
+                    "role": .string("user"),
+                    "content": .string("question"),
+                    "timestamp_ms": .number(10),
+                    "message_id": .string("m1")
+                ])
+            ]),
+            "has_more": .bool(false),
+            "oldest_loaded_message_id": .string("m1")
+        ]))
+
+        #expect(viewModel.selectedMessages.map(\.text) == ["question", "answer"])
+    }
+
     @Test func selectingSessionLoadsHistoryThroughRepositoryResult() async {
         let repository = MockChatRepository()
         repository.historyResult = [
@@ -255,7 +282,7 @@ struct ChatViewModelTests {
         await Task.yield()
 
         #expect(repository.loadedHistoryRequests == [
-            HistoryRequest(sessionKey: "s1", beforeMessageID: nil, limit: 30)
+            HistoryRequest(sessionKey: "s1", beforeMessageID: nil, limit: 10)
         ])
         #expect(viewModel.selectedMessages.map(\.text) == ["previous question", "previous answer"])
         #expect(viewModel.isLoadingHistory == false)
@@ -518,7 +545,7 @@ struct ChatViewModelTests {
         #expect(viewModel.selectedMessages.map(\.text) == ["hello", "reply from history"])
         #expect(viewModel.selectedMessages.last?.isStreaming == false)
         #expect(repository.loadedHistoryRequests.contains(
-            HistoryRequest(sessionKey: "s1", beforeMessageID: nil, limit: 30)
+            HistoryRequest(sessionKey: "s1", beforeMessageID: nil, limit: 10)
         ))
     }
 

@@ -129,7 +129,7 @@ final class ChatRepository: ChatRepositoryProtocol {
         ])
     }
 
-    func loadHistory(sessionKey: String, beforeMessageID: String?, limit: Int = 30) async throws -> [String: JSONValue] {
+    func loadHistory(sessionKey: String, beforeMessageID: String?, limit: Int = 10) async throws -> [String: JSONValue] {
         try await client.sendAndWaitResult(
             method: "thread/history",
             params: [

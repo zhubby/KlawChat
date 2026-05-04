@@ -3,6 +3,8 @@ import Foundation
 
 @MainActor
 final class ChatViewModel: ObservableObject {
+    private static let historyPageSize = 10
+
     @Published var settings: GatewaySettings
     @Published private(set) var connectionState: ConnectionState = .disconnected
     @Published private(set) var sessions: [WorkspaceSession] = []
@@ -38,7 +40,7 @@ final class ChatViewModel: ObservableObject {
 
     var selectedMessages: [ChatMessage] {
         guard let selectedSessionKey else { return [] }
-        return messagesBySession[selectedSessionKey, default: []]
+        return messages(for: selectedSessionKey)
     }
 
     var selectedRoute: ModelRoute {
@@ -62,15 +64,27 @@ final class ChatViewModel: ObservableObject {
 
     var activeTurnForSelectedSession: TurnReference? {
         guard let selectedSessionKey else { return nil }
-        return activeTurnsBySession[selectedSessionKey]
+        return activeTurn(for: selectedSessionKey)
     }
 
     var pendingServerRequestsForSelectedSession: [PendingServerRequest] {
         guard let selectedSessionKey else { return pendingServerRequests }
+        return pendingServerRequests(for: selectedSessionKey)
+    }
+
+    func messages(for sessionKey: String) -> [ChatMessage] {
+        messagesBySession[sessionKey, default: []]
+    }
+
+    func activeTurn(for sessionKey: String) -> TurnReference? {
+        activeTurnsBySession[sessionKey]
+    }
+
+    func pendingServerRequests(for sessionKey: String) -> [PendingServerRequest] {
         return pendingServerRequests.filter { request in
-            request.threadID == selectedSessionKey
-                || request.params.string("session_id") == selectedSessionKey
-                || request.params.string("session_key") == selectedSessionKey
+            request.threadID == sessionKey
+                || request.params.string("session_id") == sessionKey
+                || request.params.string("session_key") == sessionKey
         }
     }
 
@@ -205,12 +219,18 @@ final class ChatViewModel: ObservableObject {
     }
 
     func loadOlderHistory() {
-        guard let selectedSessionKey,
-              historyHasMore[selectedSessionKey, default: true],
+        guard let selectedSessionKey else {
+            return
+        }
+        loadOlderHistory(sessionKey: selectedSessionKey)
+    }
+
+    func loadOlderHistory(sessionKey: String) {
+        guard historyHasMore[sessionKey, default: true],
               !isLoadingHistory else {
             return
         }
-        loadHistory(sessionKey: selectedSessionKey, beforeMessageID: oldestLoadedMessageIDs[selectedSessionKey])
+        loadHistory(sessionKey: sessionKey, beforeMessageID: oldestLoadedMessageIDs[sessionKey])
     }
 
     func sendDraft() {
@@ -344,7 +364,7 @@ final class ChatViewModel: ObservableObject {
                 let result = try await repository.loadHistory(
                     sessionKey: sessionKey,
                     beforeMessageID: beforeMessageID,
-                    limit: 30
+                    limit: Self.historyPageSize
                 )
                 apply(result: result, id: "thread/history")
             } catch {
@@ -358,7 +378,7 @@ final class ChatViewModel: ObservableObject {
         let result = try await repository.loadHistory(
             sessionKey: sessionKey,
             beforeMessageID: nil,
-            limit: 30
+            limit: Self.historyPageSize
         )
         mergeLatestHistory(result, sessionKey: result.string("session_key") ?? sessionKey)
     }
@@ -568,25 +588,13 @@ final class ChatViewModel: ObservableObject {
     ) {
         let current = messagesBySession[sessionKey, default: []]
         let existingIDs = Set(current.compactMap(\.messageID))
-        let history = values.compactMap { value -> ChatMessage? in
-            guard let object = value.objectValue,
-                  let role = MessageRole(rawValue: object.string("role") ?? "assistant"),
-                  let content = object.string("content") else {
-                return nil
+        let history = parsedHistoryMessages(values).filter { message in
+            guard let messageID = message.messageID else {
+                return true
             }
-            let messageID = object.string("message_id")
-            if let messageID, existingIDs.contains(messageID) {
-                return nil
-            }
-            return ChatMessage(
-                role: role,
-                text: content,
-                timestampMilliseconds: object.int("timestamp_ms") ?? nowMilliseconds(),
-                messageID: messageID,
-                metadata: object.object("metadata") ?? [:]
-            )
+            return !existingIDs.contains(messageID)
         }
-        messagesBySession[sessionKey] = history + current
+        messagesBySession[sessionKey] = (history + current).sortedByTimeline()
         isLoadingHistory = false
         historyHasMore[sessionKey] = result.bool("has_more") ?? false
         oldestLoadedMessageIDs[sessionKey] = result.string("oldest_loaded_message_id")
@@ -649,7 +657,7 @@ final class ChatViewModel: ObservableObject {
             current.removeAll { $0.role == .assistant && $0.isStreaming && $0.text.isEmpty }
         }
 
-        messagesBySession[sessionKey] = current
+        messagesBySession[sessionKey] = current.sortedByTimeline()
         isLoadingHistory = false
         historyHasMore[sessionKey] = result.bool("has_more") ?? historyHasMore[sessionKey, default: false]
         oldestLoadedMessageIDs[sessionKey] = result.string("oldest_loaded_message_id") ?? oldestLoadedMessageIDs[sessionKey]
@@ -669,7 +677,7 @@ final class ChatViewModel: ObservableObject {
                 messageID: object.string("message_id"),
                 metadata: object.object("metadata") ?? [:]
             )
-        }
+        }.sortedByTimeline()
     }
 
     private func appendStreamDelta(_ delta: String, sessionKey: String, itemID: String?) {
@@ -872,5 +880,18 @@ private extension Dictionary where Key == String, Value == JSONValue {
             stream: bool("stream"),
             hasAPIKey: bool("has_api_key")
         )
+    }
+}
+
+private extension Array where Element == ChatMessage {
+    func sortedByTimeline() -> [ChatMessage] {
+        enumerated()
+            .sorted { left, right in
+                if left.element.timestampMilliseconds == right.element.timestampMilliseconds {
+                    return left.offset < right.offset
+                }
+                return left.element.timestampMilliseconds < right.element.timestampMilliseconds
+            }
+            .map(\.element)
     }
 }
