@@ -5,6 +5,8 @@ protocol GatewayWebSocketClientProtocol: AnyObject {
     func connect(baseURLString: String, token: String?) async throws
     func disconnect()
     func send(method: String, params: [String: JSONValue]) async throws -> String
+    func sendNotification(method: String, params: [String: JSONValue]) async throws
+    func sendAndWaitResult(method: String, params: [String: JSONValue], timeoutNanoseconds: UInt64) async throws -> [String: JSONValue]
 }
 
 enum GatewayWebSocketError: LocalizedError {
@@ -12,6 +14,9 @@ enum GatewayWebSocketError: LocalizedError {
     case notConnected
     case encodingFailed
     case decodingFailed
+    case requestTimedOut
+    case serverError(String)
+    case unexpectedResponse
 
     var errorDescription: String? {
         switch self {
@@ -23,16 +28,25 @@ enum GatewayWebSocketError: LocalizedError {
             return "Failed to encode WebSocket request."
         case .decodingFailed:
             return "Failed to decode WebSocket response."
+        case .requestTimedOut:
+            return "Gateway request timed out."
+        case .serverError(let message):
+            return message
+        case .unexpectedResponse:
+            return "Gateway returned an unexpected response."
         }
     }
 }
 
 final class URLSessionGatewayWebSocketClient: GatewayWebSocketClientProtocol {
+    private static let gatewayMaximumTextFrameBytes = 1_048_576
+
     private var task: URLSessionWebSocketTask?
     private let session: URLSession
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
     private var continuation: AsyncStream<ServerFrame>.Continuation?
+    private var pendingResults: [String: CheckedContinuation<[String: JSONValue], Error>] = [:]
 
     lazy var frames: AsyncStream<ServerFrame> = AsyncStream { continuation in
         self.continuation = continuation
@@ -48,7 +62,13 @@ final class URLSessionGatewayWebSocketClient: GatewayWebSocketClientProtocol {
             throw GatewayWebSocketError.invalidBaseURL
         }
 
-        let task = session.webSocketTask(with: url)
+        var request = URLRequest(url: url)
+        if let token = token?.nilIfBlank {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+
+        let task = session.webSocketTask(with: request)
+        task.maximumMessageSize = Self.gatewayMaximumTextFrameBytes
         self.task = task
         task.resume()
         receiveLoop(task)
@@ -57,18 +77,48 @@ final class URLSessionGatewayWebSocketClient: GatewayWebSocketClientProtocol {
     func disconnect() {
         task?.cancel(with: .goingAway, reason: nil)
         task = nil
+        resumeAllPendingResults(throwing: GatewayWebSocketError.notConnected)
     }
 
     func send(method: String, params: [String: JSONValue]) async throws -> String {
         guard let task else { throw GatewayWebSocketError.notConnected }
         let id = UUID().uuidString
-        let frame = ClientMethodFrame(id: id, method: method, params: params)
-        guard let data = try? encoder.encode(frame),
-              let text = String(data: data, encoding: .utf8) else {
-            throw GatewayWebSocketError.encodingFailed
-        }
+        let text = try encodedFrameText(id: id, method: method, params: params)
         try await task.send(.string(text))
         return id
+    }
+
+    func sendNotification(method: String, params: [String: JSONValue]) async throws {
+        guard let task else { throw GatewayWebSocketError.notConnected }
+        let text = try encodedNotificationText(method: method, params: params)
+        try await task.send(.string(text))
+    }
+
+    func sendAndWaitResult(
+        method: String,
+        params: [String: JSONValue],
+        timeoutNanoseconds: UInt64
+    ) async throws -> [String: JSONValue] {
+        guard let task else { throw GatewayWebSocketError.notConnected }
+        let id = UUID().uuidString
+        let text = try encodedFrameText(id: id, method: method, params: params)
+
+        return try await withCheckedThrowingContinuation { continuation in
+            pendingResults[id] = continuation
+
+            Task { @MainActor [weak self, task, text, id] in
+                do {
+                    try await task.send(.string(text))
+                } catch {
+                    self?.resumePendingResult(id, throwing: error)
+                }
+            }
+
+            Task { @MainActor [weak self, id] in
+                try? await Task.sleep(nanoseconds: timeoutNanoseconds)
+                self?.resumePendingResult(id, throwing: GatewayWebSocketError.requestTimedOut)
+            }
+        }
     }
 
     private func receiveLoop(_ task: URLSessionWebSocketTask) {
@@ -78,16 +128,77 @@ final class URLSessionGatewayWebSocketClient: GatewayWebSocketClientProtocol {
                 switch result {
                 case .success(let message):
                     if let frame = self.decode(message) {
-                        self.continuation?.yield(frame)
+                        self.handle(frame)
                     }
                     self.receiveLoop(task)
                 case .failure(let error):
+                    self.resumeAllPendingResults(throwing: error)
                     self.continuation?.yield(.error(
                         id: nil,
                         error: ServerErrorFrame(code: "websocket_receive_failed", message: error.localizedDescription, data: nil)
                     ))
                 }
             }
+        }
+    }
+
+    private func handle(_ frame: ServerFrame) {
+        switch frame {
+        case .result(let id, let result):
+            if resumePendingResult(id, returning: result) {
+                return
+            }
+        case .error(let id, let error):
+            if let id, resumePendingResult(id, throwing: GatewayWebSocketError.serverError(error.message)) {
+                return
+            }
+        case .notification, .serverRequest:
+            break
+        }
+        continuation?.yield(frame)
+    }
+
+    private func encodedFrameText(id: String, method: String, params: [String: JSONValue]) throws -> String {
+        let frame = ClientMethodFrame(id: id, method: method, params: params)
+        guard let data = try? encoder.encode(frame),
+              let text = String(data: data, encoding: .utf8) else {
+            throw GatewayWebSocketError.encodingFailed
+        }
+        return text
+    }
+
+    private func encodedNotificationText(method: String, params: [String: JSONValue]) throws -> String {
+        let frame = ClientNotificationFrame(method: method, params: params)
+        guard let data = try? encoder.encode(frame),
+              let text = String(data: data, encoding: .utf8) else {
+            throw GatewayWebSocketError.encodingFailed
+        }
+        return text
+    }
+
+    @discardableResult
+    private func resumePendingResult(_ id: String, returning result: [String: JSONValue]) -> Bool {
+        guard let continuation = pendingResults.removeValue(forKey: id) else {
+            return false
+        }
+        continuation.resume(returning: result)
+        return true
+    }
+
+    @discardableResult
+    private func resumePendingResult(_ id: String, throwing error: Error) -> Bool {
+        guard let continuation = pendingResults.removeValue(forKey: id) else {
+            return false
+        }
+        continuation.resume(throwing: error)
+        return true
+    }
+
+    private func resumeAllPendingResults(throwing error: Error) {
+        let continuations = Array(pendingResults.values)
+        pendingResults.removeAll()
+        for continuation in continuations {
+            continuation.resume(throwing: error)
         }
     }
 
@@ -119,7 +230,7 @@ final class URLSessionGatewayWebSocketClient: GatewayWebSocketClientProtocol {
             break
         }
         components.path = "/ws/chat"
-        components.queryItems = token?.nilIfBlank.map { [URLQueryItem(name: "token", value: $0)] }
+        components.queryItems = nil
         return components.url
     }
 }

@@ -154,6 +154,44 @@ struct ArchiveAttachment: Codable, Equatable, Sendable {
     }
 }
 
+struct TurnReference: Equatable, Sendable {
+    var sessionID: String
+    var threadID: String
+    var turnID: String
+}
+
+struct ApprovalResponse: Equatable, Sendable {
+    var requestID: String
+    var threadID: String
+    var turnID: String
+    var decision: String
+}
+
+struct PendingServerRequest: Identifiable, Equatable, Sendable {
+    var requestID: String
+    var method: String
+    var threadID: String
+    var turnID: String
+    var prompt: String
+    var scope: String?
+    var params: [String: JSONValue]
+
+    var id: String { requestID }
+
+    var kindLabel: String {
+        switch method {
+        case "approval/request":
+            return "Approval"
+        case "tool/request":
+            return "Tool Request"
+        case "user_input/request":
+            return "Input Requested"
+        default:
+            return "Server Request"
+        }
+    }
+}
+
 extension String {
     var nilIfBlank: String? {
         let value = trimmingCharacters(in: .whitespacesAndNewlines)

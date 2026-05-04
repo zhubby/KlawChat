@@ -15,20 +15,21 @@ final class ChatViewModel: ObservableObject {
     @Published var isLoadingHistory = false
     @Published private(set) var isWorkspaceLoaded = false
     @Published private(set) var isCreatingSession = false
+    @Published private(set) var pendingServerRequests: [PendingServerRequest] = []
 
     private let repository: ChatRepositoryProtocol
     private var frameTask: Task<Void, Never>?
     private var subscribedSessionKeys: Set<String> = []
     private var oldestLoadedMessageIDs: [String: String] = [:]
     private var historyHasMore: [String: Bool] = [:]
-    private var bootstrapRequestID: String?
     private var createSessionRequestID: UUID?
-    private var activeStreamRequestIDs: [String: String] = [:]
+    private var activeTurnsBySession: [String: TurnReference] = [:]
+    private var messageIDsByItemID: [String: String] = [:]
 
     init(repository: ChatRepositoryProtocol) {
         self.repository = repository
         self.settings = repository.settings
-        self.selectedSessionKey = repository.settings.lastSessionKey
+        self.selectedSessionKey = nil
     }
 
     var selectedSession: WorkspaceSession? {
@@ -59,11 +60,26 @@ final class ChatViewModel: ObservableObject {
             && !isCreatingSession
     }
 
+    var activeTurnForSelectedSession: TurnReference? {
+        guard let selectedSessionKey else { return nil }
+        return activeTurnsBySession[selectedSessionKey]
+    }
+
+    var pendingServerRequestsForSelectedSession: [PendingServerRequest] {
+        guard let selectedSessionKey else { return pendingServerRequests }
+        return pendingServerRequests.filter { request in
+            request.threadID == selectedSessionKey
+                || request.params.string("session_id") == selectedSessionKey
+                || request.params.string("session_key") == selectedSessionKey
+        }
+    }
+
     func connect() {
         connectionState = .connecting
         errorMessage = nil
         isWorkspaceLoaded = false
-        bootstrapRequestID = nil
+        selectedSessionKey = nil
+        settings.lastSessionKey = nil
         saveSettings()
         frameTask?.cancel()
         frameTask = Task { [weak self] in
@@ -73,9 +89,12 @@ final class ChatViewModel: ObservableObject {
         Task {
             do {
                 try await repository.connect(settings: settings)
+                try await repository.initialize()
                 connectionState = .connected
-                bootstrapRequestID = try await repository.bootstrap()
-                try await repository.listProviders()
+                let sessionsResult = try await repository.bootstrap()
+                apply(result: sessionsResult, id: "session/list")
+                let providersResult = try await repository.listProviders()
+                apply(result: providersResult, id: "provider/list")
             } catch {
                 show(error)
             }
@@ -87,9 +106,10 @@ final class ChatViewModel: ObservableObject {
         connectionState = .disconnected
         isWorkspaceLoaded = false
         isCreatingSession = false
-        bootstrapRequestID = nil
         createSessionRequestID = nil
-        activeStreamRequestIDs.removeAll()
+        activeTurnsBySession.removeAll()
+        messageIDsByItemID.removeAll()
+        pendingServerRequests.removeAll()
         subscribedSessionKeys.removeAll()
     }
 
@@ -211,12 +231,64 @@ final class ChatViewModel: ObservableObject {
         }
     }
 
+    func cancelCurrentTurn() {
+        guard let turn = activeTurnForSelectedSession else { return }
+        Task {
+            do {
+                try await repository.cancelTurn(
+                    sessionKey: turn.sessionID,
+                    threadID: turn.threadID,
+                    turnID: turn.turnID
+                )
+            } catch {
+                show(error)
+            }
+        }
+    }
+
+    func respondToServerRequest(_ request: PendingServerRequest, decision: String) {
+        Task {
+            do {
+                switch request.method {
+                case "approval/request":
+                    try await repository.respondToApproval(
+                        requestID: request.requestID,
+                        threadID: request.threadID,
+                        turnID: request.turnID,
+                        decision: decision
+                    )
+                case "tool/request":
+                    try await repository.respondToTool(
+                        requestID: request.requestID,
+                        threadID: request.threadID,
+                        turnID: request.turnID,
+                        result: ["decision": .string(decision)]
+                    )
+                case "user_input/request":
+                    try await repository.respondToUserInput(
+                        requestID: request.requestID,
+                        threadID: request.threadID,
+                        turnID: request.turnID,
+                        input: decision
+                    )
+                default:
+                    break
+                }
+                removePendingServerRequest(request.requestID)
+            } catch {
+                show(error)
+            }
+        }
+    }
+
     func apply(frame: ServerFrame) {
         switch frame {
         case .result(let id, let result):
             apply(result: result, id: id)
-        case .event(let event, let payload):
-            apply(event: event, payload: payload)
+        case .notification(let method, let params):
+            apply(notification: method, params: params)
+        case .serverRequest(let id, let method, let params):
+            apply(serverRequestID: id, method: method, params: params)
         case .error(_, let error):
             isCreatingSession = false
             createSessionRequestID = nil
@@ -266,20 +338,16 @@ final class ChatViewModel: ObservableObject {
     }
 
     private func apply(result: [String: JSONValue], id: String) {
+        if let turn = result.object("turn") {
+            rememberActiveTurn(turn)
+            return
+        }
+
         if let sessionValues = result.array("sessions") {
             let parsedSessions = sessionValues.compactMap { $0.objectValue?.workspaceSession }
             sessions = parsedSessions.sorted { $0.createdAtMilliseconds > $1.createdAtMilliseconds }
             isWorkspaceLoaded = true
-            if id == bootstrapRequestID {
-                bootstrapRequestID = nil
-            }
-            selectInitialSession(activeSessionKey: result.string("active_session_key"))
-            return
-        }
-
-        if id == bootstrapRequestID {
-            isWorkspaceLoaded = true
-            bootstrapRequestID = nil
+            clearSelectionIfMissing()
             return
         }
 
@@ -288,10 +356,6 @@ final class ChatViewModel: ObservableObject {
                 defaultProvider: result.string("default_provider"),
                 providers: providerValues.compactMap { $0.objectValue?.provider }
             )
-            if bootstrapRequestID != nil {
-                isWorkspaceLoaded = true
-                bootstrapRequestID = nil
-            }
             return
         }
 
@@ -334,80 +398,117 @@ final class ChatViewModel: ObservableObject {
             return
         }
 
-        if let sessionKey = result.string("session_key"),
-           let response = result.object("response"),
-           let content = response.string("content"),
-           !content.isEmpty {
-            appendAssistantResponse(content, sessionKey: sessionKey, result: result, response: response)
-        }
     }
 
-    private func apply(event: String, payload: [String: JSONValue]) {
-        switch event {
-        case "session.connected":
-            connectionState = .connected
-        case "session.subscribed":
-            if let sessionKey = payload.string("session_key") {
+    private func apply(notification method: String, params: [String: JSONValue]) {
+        switch method {
+        case "session/subscribed":
+            if let sessionKey = params.string("session_key") {
                 subscribedSessionKeys.insert(sessionKey)
             }
-        case "session.message":
-            applySessionMessage(payload)
-        case "session.stream.delta":
-            guard let sessionKey = payload.string("session_key") else { return }
-            appendStreamDelta(payload.string("delta") ?? "", sessionKey: sessionKey)
-        case "session.stream.clear":
-            if let sessionKey = payload.string("session_key") {
-                removeEmptyStreamingMessage(sessionKey: sessionKey)
+        case "session/unsubscribed":
+            if let sessionKey = params.string("session_key") {
+                subscribedSessionKeys.remove(sessionKey)
             }
-        case "session.stream.done":
-            guard let sessionKey = payload.string("session_key") else { return }
-            if let response = payload.object("response"),
-               let content = response.string("content"),
-               !content.isEmpty {
-                replaceStreamingMessage(with: content, sessionKey: sessionKey, messageID: payload.string("message_id"))
-            } else {
+        case "turn/started":
+            rememberActiveTurn(params)
+        case "item/started":
+            applyItem(params.object("item"), sessionKey: params.sessionIdentifier, isCompleted: false)
+        case "item/agentMessage/delta":
+            guard let sessionKey = params.sessionIdentifier else { return }
+            appendStreamDelta(params.string("delta") ?? "", sessionKey: sessionKey, itemID: params.string("item_id"))
+        case "item/completed":
+            applyItem(params.object("item"), sessionKey: params.sessionIdentifier, isCompleted: true)
+        case "turn/completed":
+            if let sessionKey = params.sessionIdentifier {
+                if let response = params.object("response"),
+                   let content = response.string("content"),
+                   !content.isEmpty {
+                    replaceStreamingMessage(
+                        with: content,
+                        sessionKey: sessionKey,
+                        messageID: response.string("message_id"),
+                        metadata: response.object("metadata") ?? [:]
+                    )
+                }
                 markStreamingDone(sessionKey: sessionKey)
+                activeTurnsBySession[sessionKey] = nil
+            }
+        case "turn/failed":
+            if let sessionKey = params.sessionIdentifier {
+                removeEmptyStreamingMessage(sessionKey: sessionKey)
+                activeTurnsBySession[sessionKey] = nil
+                appendSystemMessage(params.string("error") ?? params.string("message") ?? "Turn failed.", sessionKey: sessionKey)
+            }
+        case "turn/interrupted":
+            if let sessionKey = params.sessionIdentifier {
+                removeEmptyStreamingMessage(sessionKey: sessionKey)
+                activeTurnsBySession[sessionKey] = nil
+                markStreamingDone(sessionKey: sessionKey)
+            }
+        case "serverRequest/resolved":
+            if let requestID = params.string("request_id") {
+                removePendingServerRequest(requestID)
             }
         default:
             break
         }
     }
 
-    private func applySessionMessage(_ payload: [String: JSONValue]) {
-        guard let sessionKey = payload.string("session_key"),
-              let response = payload.object("response") else {
+    private func apply(serverRequestID id: String, method: String, params: [String: JSONValue]) {
+        let requestID = params.string("request_id") ?? id
+        let threadID = params.string("thread_id") ?? params.string("session_id") ?? selectedSessionKey ?? ""
+        let turnID = params.string("turn_id") ?? ""
+        let prompt = params.string("prompt")
+            ?? params.string("message")
+            ?? "\(method) requires a response."
+        let request = PendingServerRequest(
+            requestID: requestID,
+            method: method,
+            threadID: threadID,
+            turnID: turnID,
+            prompt: prompt,
+            scope: params.string("scope"),
+            params: params
+        )
+        if !pendingServerRequests.contains(where: { $0.requestID == requestID }) {
+            pendingServerRequests.append(request)
+        }
+        appendSystemMessage("\(request.kindLabel): \(prompt)", sessionKey: threadID)
+    }
+
+    private func applyItem(_ item: [String: JSONValue]?, sessionKey explicitSessionKey: String?, isCompleted: Bool) {
+        guard let item else {
             return
         }
-        let content = response.string("content") ?? ""
-        let role = MessageRole(rawValue: payload.string("role") ?? "") ?? .assistant
-        let messageID = payload.string("message_id")
-        guard !messageExists(messageID, sessionKey: sessionKey) else { return }
-        if role == .assistant, content.isEmpty { return }
-        let requestID = payload.string("request_id")
-        let historyEvent = payload.bool("history") ?? false
+        let sessionKey = explicitSessionKey ?? item.string("session_id") ?? selectedSessionKey
+        guard let sessionKey else { return }
+        let itemID = item.string("item_id")
+        let type = item.string("type") ?? "unknown"
 
-        if role == .assistant && !historyEvent {
-            mergeAssistantStreamMessage(
-                content: content,
+        switch type {
+        case "agentMessage":
+            guard let response = item.object("payload")?.object("response") else { return }
+            let content = response.string("content") ?? ""
+            guard !content.isEmpty else { return }
+            replaceStreamingMessage(
+                with: content,
                 sessionKey: sessionKey,
-                requestID: requestID,
-                messageID: messageID,
-                timestampMilliseconds: payload.int("timestamp_ms") ?? nowMilliseconds(),
+                messageID: itemID,
                 metadata: response.object("metadata") ?? [:]
             )
-            return
+        case "userMessage":
+            guard isCompleted,
+                  let content = item.object("payload")?.object("message")?.string("content"),
+                  !messageExists(itemID, sessionKey: sessionKey) else {
+                return
+            }
+            appendMessage(ChatMessage(role: .user, text: content, messageID: itemID), sessionKey: sessionKey)
+        default:
+            if isCompleted {
+                appendSystemMessage("\(type) completed.", sessionKey: sessionKey)
+            }
         }
-
-        appendMessage(
-            ChatMessage(
-                role: role,
-                text: content,
-                timestampMilliseconds: payload.int("timestamp_ms") ?? nowMilliseconds(),
-                messageID: messageID,
-                metadata: response.object("metadata") ?? [:]
-            ),
-            sessionKey: sessionKey
-        )
     }
 
     private func prependHistory(
@@ -441,72 +542,26 @@ final class ChatViewModel: ObservableObject {
         oldestLoadedMessageIDs[sessionKey] = result.string("oldest_loaded_message_id")
     }
 
-    private func appendAssistantResponse(
-        _ content: String,
-        sessionKey: String,
-        result: [String: JSONValue],
-        response: [String: JSONValue]
-    ) {
-        if messageExists(result.string("message_id"), sessionKey: sessionKey) {
-            return
-        }
-        replaceStreamingMessage(
-            with: content,
-            sessionKey: sessionKey,
-            messageID: result.string("message_id"),
-            metadata: response.object("metadata") ?? [:]
-        )
-    }
-
-    private func appendStreamDelta(_ delta: String, sessionKey: String) {
+    private func appendStreamDelta(_ delta: String, sessionKey: String, itemID: String?) {
         guard !delta.isEmpty else { return }
         var messages = messagesBySession[sessionKey, default: []]
-        if let index = messages.lastIndex(where: { $0.role == .assistant && $0.isStreaming }) {
+        if let itemID,
+           let localMessageID = messageIDsByItemID[itemID],
+           let index = messages.firstIndex(where: { $0.id == localMessageID }) {
             messages[index].text += delta
+        } else if let index = messages.lastIndex(where: { $0.role == .assistant && $0.isStreaming && $0.text.isEmpty && $0.messageID == nil }) {
+            messages[index].text += delta
+            messages[index].messageID = itemID
+            if let itemID {
+                messageIDsByItemID[itemID] = messages[index].id
+            }
         } else {
-            messages.append(ChatMessage(role: .assistant, text: delta, isStreaming: true))
+            let message = ChatMessage(role: .assistant, text: delta, messageID: itemID, isStreaming: true)
+            messages.append(message)
+            if let itemID {
+                messageIDsByItemID[itemID] = message.id
+            }
         }
-        messagesBySession[sessionKey] = messages
-    }
-
-    private func mergeAssistantStreamMessage(
-        content: String,
-        sessionKey: String,
-        requestID: String?,
-        messageID: String?,
-        timestampMilliseconds: Int,
-        metadata: [String: JSONValue]
-    ) {
-        var messages = messagesBySession[sessionKey, default: []]
-        let activeRequestID = activeStreamRequestIDs[sessionKey]
-        let isFinalizedDuplicate = messages.last?.role == .assistant
-            && messages.last?.isStreaming == false
-            && messages.last?.messageID == nil
-            && messages.last?.text == content
-        let shouldReplaceLast = messages.last?.role == .assistant
-            && (
-                messages.last?.isStreaming == true
-                    || (requestID != nil && requestID == activeRequestID)
-                    || isFinalizedDuplicate
-            )
-
-        if shouldReplaceLast, let lastIndex = messages.indices.last {
-            messages[lastIndex].text = content
-            messages[lastIndex].timestampMilliseconds = timestampMilliseconds
-            messages[lastIndex].messageID = messageID
-            messages[lastIndex].metadata = metadata
-            messages[lastIndex].isStreaming = !isFinalizedDuplicate
-        } else {
-            messages.append(ChatMessage(
-                role: .assistant,
-                text: content,
-                timestampMilliseconds: timestampMilliseconds,
-                messageID: messageID,
-                metadata: metadata,
-                isStreaming: true
-            ))
-        }
-        activeStreamRequestIDs[sessionKey] = requestID
         messagesBySession[sessionKey] = messages
     }
 
@@ -517,13 +572,27 @@ final class ChatViewModel: ObservableObject {
         metadata: [String: JSONValue] = [:]
     ) {
         var messages = messagesBySession[sessionKey, default: []]
-        if let index = messages.lastIndex(where: { $0.role == .assistant && $0.isStreaming }) {
+        if let messageID,
+           let localMessageID = messageIDsByItemID[messageID],
+           let index = messages.firstIndex(where: { $0.id == localMessageID }) {
             messages[index].text = content
             messages[index].messageID = messageID
             messages[index].metadata = metadata
             messages[index].isStreaming = false
+        } else if let index = messages.lastIndex(where: { $0.role == .assistant && $0.isStreaming }) {
+            messages[index].text = content
+            messages[index].messageID = messageID
+            messages[index].metadata = metadata
+            messages[index].isStreaming = false
+            if let messageID {
+                messageIDsByItemID[messageID] = messages[index].id
+            }
         } else {
-            messages.append(ChatMessage(role: .assistant, text: content, messageID: messageID, metadata: metadata))
+            let message = ChatMessage(role: .assistant, text: content, messageID: messageID, metadata: metadata)
+            messages.append(message)
+            if let messageID {
+                messageIDsByItemID[messageID] = message.id
+            }
         }
         messagesBySession[sessionKey] = messages
     }
@@ -534,7 +603,6 @@ final class ChatViewModel: ObservableObject {
             messages[index].isStreaming = false
         }
         messagesBySession[sessionKey] = messages
-        activeStreamRequestIDs[sessionKey] = nil
     }
 
     private func removeEmptyStreamingMessage(sessionKey: String) {
@@ -547,18 +615,24 @@ final class ChatViewModel: ObservableObject {
         messagesBySession[sessionKey, default: []].append(message)
     }
 
+    private func appendSystemMessage(_ text: String, sessionKey: String) {
+        guard !text.isEmpty else { return }
+        appendMessage(ChatMessage(role: .system, text: text), sessionKey: sessionKey)
+    }
+
     private func messageExists(_ messageID: String?, sessionKey: String) -> Bool {
         guard let messageID else { return false }
         return messagesBySession[sessionKey, default: []].contains { $0.messageID == messageID }
     }
 
-    private func selectInitialSession(activeSessionKey: String?) {
-        let preferred = settings.lastSessionKey ?? selectedSessionKey ?? activeSessionKey
-        selectedSessionKey = sessions.first { $0.sessionKey == preferred }?.sessionKey
-            ?? sessions.first?.sessionKey
-        settings.lastSessionKey = selectedSessionKey
-        saveSettings()
-        ensureSelectedSessionReady()
+    private func clearSelectionIfMissing() {
+        guard let selectedSessionKey,
+              sessions.contains(where: { $0.sessionKey == selectedSessionKey }) else {
+            self.selectedSessionKey = nil
+            settings.lastSessionKey = nil
+            saveSettings()
+            return
+        }
     }
 
     private func upsertSession(_ session: WorkspaceSession) {
@@ -580,6 +654,8 @@ final class ChatViewModel: ObservableObject {
     private func removeSession(_ sessionKey: String) {
         sessions.removeAll { $0.sessionKey == sessionKey }
         messagesBySession[sessionKey] = nil
+        let remainingMessageIDs = Set(messagesBySession.values.flatMap { $0.map(\.id) })
+        messageIDsByItemID = messageIDsByItemID.filter { remainingMessageIDs.contains($0.value) }
         subscribedSessionKeys.remove(sessionKey)
         if selectedSessionKey == sessionKey {
             selectedSessionKey = sessions.first?.sessionKey
@@ -595,12 +671,29 @@ final class ChatViewModel: ObservableObject {
         connectionState = .error(message)
     }
 
+    private func rememberActiveTurn(_ params: [String: JSONValue]) {
+        guard let sessionID = params.sessionIdentifier,
+              let threadID = params.string("thread_id") ?? params.sessionIdentifier,
+              let turnID = params.string("turn_id") else {
+            return
+        }
+        activeTurnsBySession[sessionID] = TurnReference(sessionID: sessionID, threadID: threadID, turnID: turnID)
+    }
+
+    private func removePendingServerRequest(_ requestID: String) {
+        pendingServerRequests.removeAll { $0.requestID == requestID }
+    }
+
     private func nowMilliseconds() -> Int {
         Int(Date().timeIntervalSince1970 * 1000)
     }
 }
 
 private extension Dictionary where Key == String, Value == JSONValue {
+    var sessionIdentifier: String? {
+        string("session_id") ?? string("session_key")
+    }
+
     var workspaceSession: WorkspaceSession? {
         guard let sessionKey = string("session_key"),
               let title = string("title"),

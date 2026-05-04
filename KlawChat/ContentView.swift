@@ -215,12 +215,21 @@ private struct ChatDetailView: View {
     var body: some View {
         VStack(spacing: 0) {
             MessageListView(messages: viewModel.selectedMessages)
+            PendingServerRequestsView(requests: viewModel.pendingServerRequestsForSelectedSession)
             Divider()
             ComposerView()
         }
         .navigationTitle(session.displayTitle)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                if viewModel.activeTurnForSelectedSession != nil {
+                    Button("Cancel Turn") {
+                        viewModel.cancelCurrentTurn()
+                    }
+                    .foregroundStyle(.red)
+                }
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
                     configuredSession = viewModel.selectedSession ?? session
@@ -231,7 +240,46 @@ private struct ChatDetailView: View {
             }
         }
         .task(id: session.sessionKey) {
-            viewModel.ensureSelectedSessionReady()
+            viewModel.selectSession(session)
+        }
+    }
+}
+
+private struct PendingServerRequestsView: View {
+    @EnvironmentObject private var viewModel: ChatViewModel
+    let requests: [PendingServerRequest]
+
+    var body: some View {
+        if !requests.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(requests) { request in
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(request.kindLabel)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                        Text(request.prompt)
+                            .font(.footnote)
+                        HStack {
+                            Button("Reject") {
+                                viewModel.respondToServerRequest(request, decision: "reject")
+                            }
+                            .buttonStyle(.bordered)
+
+                            Button("Accept") {
+                                viewModel.respondToServerRequest(request, decision: "accept")
+                            }
+                            .buttonStyle(.borderedProminent)
+                        }
+                    }
+                    .padding(10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color(.secondarySystemBackground))
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .background(.bar)
         }
     }
 }
@@ -272,13 +320,23 @@ private struct MessageListView: View {
             .onChange(of: messages.last?.text) { _, _ in
                 scrollToBottom(proxy: proxy)
             }
+            .onAppear {
+                scrollToBottom(proxy: proxy, animated: false)
+            }
         }
     }
 
-    private func scrollToBottom(proxy: ScrollViewProxy) {
+    private func scrollToBottom(proxy: ScrollViewProxy, animated: Bool = true) {
         guard let lastID = messages.last?.id else { return }
-        withAnimation(.easeOut(duration: 0.25)) {
+        let scroll = {
             proxy.scrollTo(lastID, anchor: .bottom)
+        }
+        if animated {
+            withAnimation(.easeOut(duration: 0.25), scroll)
+        } else {
+            DispatchQueue.main.async {
+                scroll()
+            }
         }
     }
 }
@@ -312,7 +370,7 @@ private struct MessageBubbleView: View {
                     .background(background)
                     .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                     .frame(maxWidth: 620, alignment: message.role == .user ? .trailing : .leading)
-                    .multilineTextAlignment(message.role == .user ? .trailing : .leading)
+                    .multilineTextAlignment(.leading)
             }
             .frame(maxWidth: 620, alignment: message.role == .user ? .trailing : .leading)
             if message.role != .user {
@@ -562,12 +620,17 @@ private final class PreviewChatRepository: ChatRepositoryProtocol {
     func save(settings: GatewaySettings) {}
     func connect(settings: GatewaySettings) async throws {}
     func disconnect() {}
-    func bootstrap() async throws -> String { "preview-bootstrap" }
-    func listProviders() async throws {}
+    func initialize() async throws {}
+    func bootstrap() async throws -> [String: JSONValue] { ["sessions": .array([])] }
+    func listProviders() async throws -> [String: JSONValue] { ["providers": .array([])] }
     func createSession() async throws {}
     func updateSession(sessionKey: String, title: String, modelProvider: String?, model: String?) async throws {}
     func deleteSession(sessionKey: String) async throws {}
     func subscribe(sessionKey: String) async throws {}
     func loadHistory(sessionKey: String, beforeMessageID: String?, limit: Int) async throws {}
     func submit(sessionKey: String, input: String, stream: Bool, route: ModelRoute, attachments: [ArchiveAttachment]) async throws {}
+    func cancelTurn(sessionKey: String, threadID: String, turnID: String) async throws {}
+    func respondToApproval(requestID: String, threadID: String, turnID: String, decision: String) async throws {}
+    func respondToTool(requestID: String, threadID: String, turnID: String, result: [String: JSONValue]) async throws {}
+    func respondToUserInput(requestID: String, threadID: String, turnID: String, input: String) async throws {}
 }
