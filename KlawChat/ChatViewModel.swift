@@ -544,7 +544,6 @@ final class ChatViewModel: ObservableObject {
         if !pendingServerRequests.contains(where: { $0.requestID == requestID }) {
             pendingServerRequests.append(request)
         }
-        appendSystemMessage("\(request.kindLabel): \(prompt)", sessionKey: threadID)
     }
 
     private func applyItem(_ item: [String: JSONValue]?, sessionKey explicitSessionKey: String?, isCompleted: Bool) {

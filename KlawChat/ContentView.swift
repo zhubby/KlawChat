@@ -219,9 +219,9 @@ private struct ChatDetailView: View {
         VStack(spacing: 0) {
             MessageListView(
                 sessionKey: session.sessionKey,
-                messages: viewModel.messages(for: session.sessionKey)
+                messages: viewModel.messages(for: session.sessionKey),
+                requests: viewModel.pendingServerRequests(for: session.sessionKey)
             )
-            PendingServerRequestsView(requests: viewModel.pendingServerRequests(for: session.sessionKey))
             Divider()
             ComposerView()
         }
@@ -251,71 +251,12 @@ private struct ChatDetailView: View {
     }
 }
 
-private struct PendingServerRequestsView: View {
-    @EnvironmentObject private var viewModel: ChatViewModel
-    let requests: [PendingServerRequest]
-    @State private var userInputDrafts: [String: String] = [:]
-
-    var body: some View {
-        if !requests.isEmpty {
-            VStack(alignment: .leading, spacing: 8) {
-                ForEach(requests) { request in
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(request.kindLabel)
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.secondary)
-                        Text(request.prompt)
-                            .font(.footnote)
-                        if request.isUserInputRequest {
-                            HStack(alignment: .bottom, spacing: 8) {
-                                TextField("Reply to agent", text: binding(for: request))
-                                    .textFieldStyle(.roundedBorder)
-                                Button("Send") {
-                                    let input = userInputDrafts[request.requestID]?.nilIfBlank ?? ""
-                                    viewModel.respondToServerRequest(request, decision: input)
-                                    userInputDrafts[request.requestID] = nil
-                                }
-                                .buttonStyle(.borderedProminent)
-                                .disabled(userInputDrafts[request.requestID]?.nilIfBlank == nil)
-                            }
-                        } else {
-                            HStack {
-                                Button("Reject") {
-                                    viewModel.respondToServerRequest(request, decision: "reject")
-                                }
-                                .buttonStyle(.bordered)
-
-                                Button("Accept") {
-                                    viewModel.respondToServerRequest(request, decision: "accept")
-                                }
-                                .buttonStyle(.borderedProminent)
-                            }
-                        }
-                    }
-                    .padding(10)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color(.secondarySystemBackground))
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                }
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 8)
-            .background(.bar)
-        }
-    }
-
-    private func binding(for request: PendingServerRequest) -> Binding<String> {
-        Binding(
-            get: { userInputDrafts[request.requestID, default: ""] },
-            set: { userInputDrafts[request.requestID] = $0 }
-        )
-    }
-}
-
 private struct MessageListView: View {
     @EnvironmentObject private var viewModel: ChatViewModel
     let sessionKey: String
     let messages: [ChatMessage]
+    let requests: [PendingServerRequest]
+    @State private var userInputDrafts: [String: String] = [:]
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -324,7 +265,7 @@ private struct MessageListView: View {
                     if messages.isEmpty && viewModel.isLoadingHistory {
                         HistoryLoadingView()
                             .padding(.top, 80)
-                    } else if messages.isEmpty {
+                    } else if messages.isEmpty && requests.isEmpty {
                         ContentUnavailableView(
                             "Start the Conversation",
                             systemImage: "sparkles",
@@ -342,6 +283,22 @@ private struct MessageListView: View {
                             MessageBubbleView(message: message)
                                 .id(message.id)
                         }
+
+                        ForEach(requests) { request in
+                            ServerRequestCardView(
+                                request: request,
+                                inputText: binding(for: request),
+                                onDecision: { decision in
+                                    viewModel.respondToServerRequest(request, decision: decision)
+                                },
+                                onSubmitInput: {
+                                    let input = userInputDrafts[request.requestID]?.nilIfBlank ?? ""
+                                    viewModel.respondToServerRequest(request, decision: input)
+                                    userInputDrafts[request.requestID] = nil
+                                }
+                            )
+                            .id(request.id)
+                        }
                     }
                 }
                 .padding()
@@ -355,14 +312,25 @@ private struct MessageListView: View {
             .onChange(of: messages.last?.text) { _, _ in
                 scrollToBottom(proxy: proxy)
             }
+            .onChange(of: requests.count) { _, _ in
+                scrollToBottom(proxy: proxy)
+            }
             .onAppear {
                 scrollToBottom(proxy: proxy, animated: false)
             }
         }
     }
 
+    private func binding(for request: PendingServerRequest) -> Binding<String> {
+        Binding(
+            get: { userInputDrafts[request.requestID, default: ""] },
+            set: { userInputDrafts[request.requestID] = $0 }
+        )
+    }
+
     private func scrollToBottom(proxy: ScrollViewProxy, animated: Bool = true) {
-        guard let lastID = messages.last?.id else { return }
+        let lastID = requests.last?.id ?? messages.last?.id
+        guard let lastID else { return }
         let scroll = {
             proxy.scrollTo(lastID, anchor: .bottom)
         }
@@ -373,6 +341,73 @@ private struct MessageListView: View {
                 scroll()
             }
         }
+    }
+}
+
+private struct ServerRequestCardView: View {
+    let request: PendingServerRequest
+    @Binding var inputText: String
+    let onDecision: (String) -> Void
+    let onSubmitInput: () -> Void
+
+    var body: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 8) {
+                    Image(systemName: iconName)
+                        .foregroundStyle(Color.accentColor)
+                    Text(request.kindLabel)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                }
+
+                Text(request.prompt)
+                    .font(.body)
+                    .multilineTextAlignment(.leading)
+
+                if request.isUserInputRequest {
+                    HStack(alignment: .bottom, spacing: 8) {
+                        TextField("Reply to agent", text: $inputText, axis: .vertical)
+                            .lineLimit(1...4)
+                            .textFieldStyle(.roundedBorder)
+
+                        Button("Send", action: onSubmitInput)
+                            .buttonStyle(.borderedProminent)
+                            .disabled(inputText.nilIfBlank == nil)
+                    }
+                } else {
+                    HStack {
+                        Button("Reject") {
+                            onDecision("reject")
+                        }
+                        .buttonStyle(.bordered)
+
+                        Button("Accept") {
+                            onDecision("accept")
+                        }
+                        .buttonStyle(.borderedProminent)
+                    }
+                }
+            }
+            .padding(12)
+            .frame(maxWidth: 620, alignment: .leading)
+            .background(Color(.secondarySystemBackground))
+            .overlay {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(Color.accentColor.opacity(0.35), lineWidth: 1)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+
+            Spacer(minLength: 40)
+        }
+    }
+
+    private var iconName: String {
+        if request.isUserInputRequest {
+            return "questionmark.bubble"
+        }
+        return "checkmark.shield"
     }
 }
 

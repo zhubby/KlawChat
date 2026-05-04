@@ -439,6 +439,7 @@ struct ChatViewModelTests {
 
         #expect(viewModel.pendingServerRequests.count == 1)
         #expect(viewModel.pendingServerRequests.first?.prompt == "Allow command execution?")
+        #expect(viewModel.selectedMessages.isEmpty)
 
         viewModel.respondToServerRequest(viewModel.pendingServerRequests[0], decision: "accept")
         await Task.yield()
@@ -446,6 +447,7 @@ struct ChatViewModelTests {
         #expect(repository.approvalResponses == [
             ApprovalResponse(requestID: "srv-1", threadID: "s1", turnID: "t1", decision: "accept")
         ])
+        #expect(viewModel.pendingServerRequests.isEmpty)
     }
 
     @Test func toolRequestUserInputRespondsWithUserInput() async {
