@@ -702,6 +702,7 @@ final class ChatViewModel: ObservableObject {
         metadata: [String: JSONValue] = [:]
     ) {
         var messages = messagesBySession[sessionKey, default: []]
+        let normalizedContent = normalizedMessageText(content)
         if let messageID,
            let localMessageID = messageIDsByItemID[messageID],
            let index = messages.firstIndex(where: { $0.id == localMessageID }) {
@@ -714,6 +715,16 @@ final class ChatViewModel: ObservableObject {
             messages[index].messageID = messageID
             messages[index].metadata = metadata
             messages[index].isStreaming = false
+            if let messageID {
+                messageIDsByItemID[messageID] = messages[index].id
+            }
+        } else if let index = messages.indices.last,
+                  messages[index].role == .assistant,
+                  !messages[index].isStreaming,
+                  normalizedMessageText(messages[index].text) == normalizedContent {
+            messages[index].text = content
+            messages[index].messageID = messageID ?? messages[index].messageID
+            messages[index].metadata = metadata
             if let messageID {
                 messageIDsByItemID[messageID] = messages[index].id
             }
@@ -822,6 +833,10 @@ final class ChatViewModel: ObservableObject {
 
     private func nowMilliseconds() -> Int {
         Int(Date().timeIntervalSince1970 * 1000)
+    }
+
+    private func normalizedMessageText(_ text: String) -> String {
+        text.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
 

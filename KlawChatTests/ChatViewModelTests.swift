@@ -334,6 +334,46 @@ struct ChatViewModelTests {
         #expect(viewModel.selectedMessages.first?.isStreaming == false)
     }
 
+    @Test func turnCompletedResponseDoesNotDuplicateCompletedAgentMessage() {
+        let viewModel = ChatViewModel(repository: MockChatRepository())
+        seedSession("s1", in: viewModel)
+
+        viewModel.apply(frame: .notification(method: "item/agentMessage/delta", params: [
+            "session_id": .string("s1"),
+            "item_id": .string("i1"),
+            "delta": .string("Hello")
+        ]))
+        viewModel.apply(frame: .notification(method: "item/completed", params: [
+            "session_id": .string("s1"),
+            "item": .object([
+                "item_id": .string("i1"),
+                "type": .string("agentMessage"),
+                "status": .string("completed"),
+                "payload": .object([
+                    "response": .object([
+                        "content": .string("Hello"),
+                        "metadata": .object([:])
+                    ])
+                ])
+            ])
+        ]))
+        viewModel.apply(frame: .notification(method: "turn/completed", params: [
+            "session_id": .string("s1"),
+            "turn_id": .string("t1"),
+            "status": .string("completed"),
+            "response": .object([
+                "message_id": .string("assistant-1"),
+                "content": .string("Hello"),
+                "metadata": .object([:])
+            ])
+        ]))
+
+        #expect(viewModel.selectedMessages.count == 1)
+        #expect(viewModel.selectedMessages.first?.role == .assistant)
+        #expect(viewModel.selectedMessages.first?.text == "Hello")
+        #expect(viewModel.selectedMessages.first?.isStreaming == false)
+    }
+
     @Test func interleavedAgentMessageDeltasAreMergedByItemID() {
         let viewModel = ChatViewModel(repository: MockChatRepository())
         seedSession("s1", in: viewModel)
