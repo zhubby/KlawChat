@@ -331,6 +331,42 @@ struct ChatViewModelTests {
         #expect(viewModel.selectedMessages.last?.isStreaming == false)
     }
 
+    @Test func turnStartResultResponseCreatesAssistantMessageWhenRealtimeCompletionIsMissing() {
+        let viewModel = ChatViewModel(repository: MockChatRepository())
+        seedSession("s1", in: viewModel)
+
+        viewModel.apply(frame: .result(id: "turn-req", result: [
+            "session_key": .string("s1"),
+            "stream": .bool(false),
+            "response": .object([
+                "message_id": .string("assistant-1"),
+                "content": .string("Fallback answer"),
+                "metadata": .object(["source": .string("turn-result")])
+            ])
+        ]))
+
+        #expect(viewModel.selectedMessages.last?.role == .assistant)
+        #expect(viewModel.selectedMessages.last?.text == "Fallback answer")
+        #expect(viewModel.selectedMessages.last?.messageID == "assistant-1")
+        #expect(viewModel.selectedMessages.last?.metadata["source"] == .string("turn-result"))
+    }
+
+    @Test func approvalSignalMetadataResolvesApprovalCard() {
+        let message = ChatMessage(role: .assistant, text: "Approval required", metadata: [
+            "approval.signal": .object([
+                "approval_id": .string("approval-2"),
+                "command_preview": .string("git push origin HEAD")
+            ])
+        ])
+
+        #expect(message.interactionCard?.kind == .approval)
+        #expect(message.interactionCard?.title == "Approval Required")
+        #expect(message.interactionCard?.body == "Approval required")
+        #expect(message.interactionCard?.approvalID == "approval-2")
+        #expect(message.interactionCard?.commandPreview == "git push origin HEAD")
+        #expect(message.interactionCard?.actions.map(\.command) == ["/approve approval-2", "/reject approval-2"])
+    }
+
     @Test func itemCompletedForAgentMessageReplacesStreamedBubble() {
         let viewModel = ChatViewModel(repository: MockChatRepository())
         seedSession("s1", in: viewModel)
@@ -597,6 +633,22 @@ struct ChatViewModelTests {
         #expect(client.sentParams[1]["decision"] == .string("reject"))
         #expect(client.sentParams[2]["result"] == .object(["ok": .bool(true)]))
         #expect(client.sentParams[3]["answers"] == .string("more context"))
+    }
+
+    @Test func serverErrorFrameShowsMessageWithoutLeavingConnectedState() async {
+        let repository = MockChatRepository()
+        let viewModel = ChatViewModel(repository: repository)
+        viewModel.connect()
+        await Task.yield()
+
+        viewModel.apply(frame: .error(
+            id: "request-1",
+            error: ServerErrorFrame(code: "invalid_params", message: "bad request", data: nil)
+        ))
+
+        #expect(viewModel.connectionState == .connected)
+        #expect(viewModel.errorMessage == "invalid_params: bad request")
+        #expect(viewModel.canCreateSession == true)
     }
 
     private func seedSession(_ sessionKey: String, in viewModel: ChatViewModel) {

@@ -280,7 +280,12 @@ private struct MessageListView: View {
                         }
 
                         ForEach(messages) { message in
-                            MessageBubbleView(message: message)
+                            MessageBubbleView(
+                                message: message,
+                                onCardCommand: { command in
+                                    viewModel.submitCardCommand(command, sessionKey: sessionKey)
+                                }
+                            )
                                 .id(message.id)
                         }
 
@@ -425,6 +430,7 @@ private struct HistoryLoadingView: View {
 
 private struct MessageBubbleView: View {
     let message: ChatMessage
+    let onCardCommand: (String) -> Void
 
     var body: some View {
         HStack {
@@ -463,7 +469,9 @@ private struct MessageBubbleView: View {
 
     @ViewBuilder
     private var messageBody: some View {
-        if message.role == .assistant {
+        if message.role == .assistant, let card = message.interactionCard {
+            InteractionCardView(card: card, onCommand: onCardCommand)
+        } else if message.role == .assistant {
             Markdown(message.text.isEmpty ? " " : message.text)
                 .markdownTextStyle {
                     FontSize(15)
@@ -497,6 +505,90 @@ private struct MessageBubbleView: View {
             return .orange.opacity(0.12)
         case .user:
             return .accentColor.opacity(0.18)
+        }
+    }
+}
+
+private struct InteractionCardView: View {
+    let card: InteractionCard
+    let onCommand: (String) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Image(systemName: iconName)
+                    .foregroundStyle(Color.orange)
+                Text(card.title)
+                    .font(.headline)
+                Spacer()
+                Text(badgeText)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
+
+            if let commandPreview = card.commandPreview {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Command")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    Text(commandPreview)
+                        .font(.system(.footnote, design: .monospaced))
+                        .padding(8)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color(.tertiarySystemBackground))
+                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                }
+            }
+
+            if !card.body.isEmpty {
+                Markdown(card.body)
+                    .markdownTextStyle {
+                        FontSize(15)
+                    }
+            }
+
+            if let approvalID = card.approvalID {
+                Text("Approval ID: \(approvalID)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            if !card.actions.isEmpty {
+                HStack {
+                    ForEach(card.actions, id: \.command) { action in
+                        if action.command.hasPrefix("/approve ") {
+                            Button(action.label) {
+                                onCommand(action.command)
+                            }
+                            .buttonStyle(.borderedProminent)
+                        } else {
+                            Button(action.label) {
+                                onCommand(action.command)
+                            }
+                            .buttonStyle(.bordered)
+                        }
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var iconName: String {
+        switch card.kind {
+        case .approval:
+            return "checkmark.shield"
+        case .questionSingleSelect:
+            return "questionmark.bubble"
+        }
+    }
+
+    private var badgeText: String {
+        switch card.kind {
+        case .approval:
+            return "Approval"
+        case .questionSingleSelect:
+            return "Question"
         }
     }
 }

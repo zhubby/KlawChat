@@ -113,6 +113,10 @@ struct ChatMessage: Identifiable, Equatable, Sendable {
         self.metadata = metadata
         self.isStreaming = isStreaming
     }
+
+    var interactionCard: InteractionCard? {
+        InteractionCard.resolve(content: text, metadata: metadata)
+    }
 }
 
 extension ChatMessage {
@@ -137,6 +141,137 @@ extension ChatMessage {
 
         let elapsedDays = elapsedHours / 24
         return "\(elapsedDays) \(elapsedDays == 1 ? "day" : "days") ago"
+    }
+}
+
+enum InteractionCardKind: String, Equatable, Sendable {
+    case approval
+    case questionSingleSelect = "question_single_select"
+}
+
+struct InteractionCardAction: Equatable, Sendable {
+    var label: String
+    var command: String
+}
+
+struct InteractionCard: Equatable, Sendable {
+    var kind: InteractionCardKind
+    var title: String
+    var body: String
+    var approvalID: String?
+    var commandPreview: String?
+    var actions: [InteractionCardAction]
+
+    static func resolve(content: String, metadata: [String: JSONValue]) -> InteractionCard? {
+        explicitCard(from: metadata.object("im.card"), fallbackContent: content)
+            ?? approvalCard(content: content, metadata: metadata)
+    }
+
+    private static func explicitCard(from object: [String: JSONValue]?, fallbackContent: String) -> InteractionCard? {
+        guard let object,
+              let kindValue = object.string("kind"),
+              let kind = InteractionCardKind(rawValue: kindValue) else {
+            return nil
+        }
+
+        let cardMetadata = object.object("metadata") ?? [:]
+        let fallbackBody = object.string("fallback_text") ?? fallbackContent
+        let body = object.string("body")?.nilIfBlank ?? fallbackBody.nilIfBlank ?? ""
+        let approvalID = approvalID(in: cardMetadata)
+            ?? object.array("actions")?.compactMap { actionApprovalID($0.objectValue) }.first
+        let title = object.string("title")?.nilIfBlank ?? defaultTitle(for: kind)
+        return InteractionCard(
+            kind: kind,
+            title: title,
+            body: body,
+            approvalID: approvalID,
+            commandPreview: cardMetadata.string("command_preview"),
+            actions: actions(from: object.array("actions"), approvalID: approvalID)
+        )
+    }
+
+    private static func approvalCard(content: String, metadata: [String: JSONValue]) -> InteractionCard? {
+        let signal = metadata.object("approval.signal")
+        guard let approvalID = approvalID(in: metadata)
+            ?? signal?.string("approval_id")?.nilIfBlank
+            ?? extractApprovalID(from: content) else {
+            return nil
+        }
+
+        return InteractionCard(
+            kind: .approval,
+            title: defaultTitle(for: .approval),
+            body: content.trimmingCharacters(in: .whitespacesAndNewlines),
+            approvalID: approvalID,
+            commandPreview: signal?.string("command_preview")?.nilIfBlank,
+            actions: [
+                InteractionCardAction(label: "Approve", command: "/approve \(approvalID)"),
+                InteractionCardAction(label: "Reject", command: "/reject \(approvalID)")
+            ]
+        )
+    }
+
+    private static func actions(from values: [JSONValue]?, approvalID: String?) -> [InteractionCardAction] {
+        values?.compactMap { value in
+            guard let object = value.objectValue,
+                  let kind = object.string("kind") else {
+                return nil
+            }
+            let label = object.string("label")?.nilIfBlank ?? defaultActionLabel(for: kind)
+            switch kind {
+            case "approve":
+                guard let approvalID = actionApprovalID(object) ?? approvalID else { return nil }
+                return InteractionCardAction(label: label, command: "/approve \(approvalID)")
+            case "reject":
+                guard let approvalID = actionApprovalID(object) ?? approvalID else { return nil }
+                return InteractionCardAction(label: label, command: "/reject \(approvalID)")
+            case "submit_command":
+                guard let command = object.string("command")?.nilIfBlank else { return nil }
+                return InteractionCardAction(label: label, command: command)
+            default:
+                return nil
+            }
+        } ?? []
+    }
+
+    private static func approvalID(in metadata: [String: JSONValue]) -> String? {
+        metadata.string("approval_id")?.nilIfBlank
+            ?? metadata.string("approval.id")?.nilIfBlank
+    }
+
+    private static func actionApprovalID(_ object: [String: JSONValue]?) -> String? {
+        object?.string("value")?.nilIfBlank
+    }
+
+    private static func extractApprovalID(from content: String) -> String? {
+        guard let range = content.range(of: "approval_id=") else {
+            return nil
+        }
+        let suffix = content[range.upperBound...]
+        let token = suffix.prefix { character in
+            character.isLetter || character.isNumber || character == "-"
+        }
+        return token.isEmpty ? nil : String(token)
+    }
+
+    private static func defaultTitle(for kind: InteractionCardKind) -> String {
+        switch kind {
+        case .approval:
+            return "Approval Required"
+        case .questionSingleSelect:
+            return "Question"
+        }
+    }
+
+    private static func defaultActionLabel(for kind: String) -> String {
+        switch kind {
+        case "approve":
+            return "Approve"
+        case "reject":
+            return "Reject"
+        default:
+            return "Select"
+        }
     }
 }
 

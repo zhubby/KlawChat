@@ -110,7 +110,7 @@ final class ChatViewModel: ObservableObject {
                 let providersResult = try await repository.listProviders()
                 apply(result: providersResult, id: "provider/list")
             } catch {
-                show(error)
+                showConnectionError(error)
             }
         }
     }
@@ -235,6 +235,15 @@ final class ChatViewModel: ObservableObject {
 
     func sendDraft() {
         guard let selectedSessionKey, let text = draft.nilIfBlank else { return }
+        submit(text, sessionKey: selectedSessionKey)
+    }
+
+    func submitCardCommand(_ command: String, sessionKey: String) {
+        guard command.nilIfBlank != nil else { return }
+        submit(command, sessionKey: sessionKey)
+    }
+
+    private func submit(_ text: String, sessionKey selectedSessionKey: String) {
         let route = selectedRoute
         draft = ""
         appendMessage(
@@ -329,7 +338,10 @@ final class ChatViewModel: ObservableObject {
             isCreatingSession = false
             createSessionRequestID = nil
             statusMessage = nil
-            showMessage("\(error.code): \(error.message)")
+            showMessage(
+                "\(error.code): \(error.message)",
+                marksConnectionError: error.code == "websocket_receive_failed" || connectionState == .connecting
+            )
         }
     }
 
@@ -432,6 +444,19 @@ final class ChatViewModel: ObservableObject {
         if let messages = result.array("messages"),
            let sessionKey = result.string("session_key") {
             prependHistory(messages, sessionKey: sessionKey, result: result)
+            return
+        }
+
+        if let response = result.object("response"),
+           let content = response.string("content"),
+           !content.isEmpty,
+           let sessionKey = result.sessionIdentifier ?? result.string("thread_id") {
+            replaceStreamingMessage(
+                with: content,
+                sessionKey: sessionKey,
+                messageID: response.string("message_id") ?? result.string("message_id"),
+                metadata: response.object("metadata") ?? [:]
+            )
             return
         }
 
@@ -820,9 +845,15 @@ final class ChatViewModel: ObservableObject {
         showMessage(error.localizedDescription)
     }
 
-    private func showMessage(_ message: String) {
+    private func showConnectionError(_ error: Error) {
+        showMessage(error.localizedDescription, marksConnectionError: true)
+    }
+
+    private func showMessage(_ message: String, marksConnectionError: Bool = false) {
         errorMessage = message
-        connectionState = .error(message)
+        if marksConnectionError {
+            connectionState = .error(message)
+        }
     }
 
     private func rememberActiveTurn(_ params: [String: JSONValue]) {
