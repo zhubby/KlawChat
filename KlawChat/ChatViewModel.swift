@@ -21,6 +21,7 @@ final class ChatViewModel: ObservableObject {
 
     private let repository: ChatRepositoryProtocol
     private var frameTask: Task<Void, Never>?
+    private var connectionEventTask: Task<Void, Never>?
     private var subscribedSessionKeys: Set<String> = []
     private var oldestLoadedMessageIDs: [String: String] = [:]
     private var historyHasMore: [String: Bool] = [:]
@@ -99,6 +100,10 @@ final class ChatViewModel: ObservableObject {
         frameTask = Task { [weak self] in
             await self?.consumeFrames()
         }
+        connectionEventTask?.cancel()
+        connectionEventTask = Task { [weak self] in
+            await self?.consumeConnectionEvents()
+        }
 
         Task {
             do {
@@ -117,6 +122,8 @@ final class ChatViewModel: ObservableObject {
 
     func disconnect() {
         repository.disconnect()
+        connectionEventTask?.cancel()
+        connectionEventTask = nil
         connectionState = .disconnected
         isWorkspaceLoaded = false
         isCreatingSession = false
@@ -235,6 +242,10 @@ final class ChatViewModel: ObservableObject {
 
     func sendDraft() {
         guard let selectedSessionKey, let text = draft.nilIfBlank else { return }
+        guard connectionState != .reconnecting else {
+            showMessage("Gateway is reconnecting. Please wait before sending.")
+            return
+        }
         submit(text, sessionKey: selectedSessionKey)
     }
 
@@ -349,6 +360,65 @@ final class ChatViewModel: ObservableObject {
         for await frame in repository.frames {
             if Task.isCancelled { return }
             apply(frame: frame)
+        }
+    }
+
+    private func consumeConnectionEvents() async {
+        for await event in repository.connectionEvents {
+            if Task.isCancelled { return }
+            await apply(connectionEvent: event)
+        }
+    }
+
+    private func apply(connectionEvent event: GatewayWebSocketConnectionEvent) async {
+        switch event {
+        case .connecting:
+            connectionState = .connecting
+        case .connected:
+            connectionState = .connected
+        case .reconnecting:
+            connectionState = .reconnecting
+            isWorkspaceLoaded = false
+            subscribedSessionKeys.removeAll()
+            activeTurnsBySession.removeAll()
+            pendingServerRequests.removeAll()
+            statusMessage = "Reconnecting to gateway..."
+        case .reconnected:
+            await restoreAfterReconnect()
+        case .disconnected:
+            connectionState = .disconnected
+            isWorkspaceLoaded = false
+            subscribedSessionKeys.removeAll()
+            activeTurnsBySession.removeAll()
+            pendingServerRequests.removeAll()
+        case .failed(let message):
+            showMessage(message, marksConnectionError: true)
+        }
+    }
+
+    private func restoreAfterReconnect() async {
+        let sessionToRestore = selectedSessionKey
+        do {
+            try await repository.initialize()
+            let sessionsResult = try await repository.bootstrap()
+            apply(result: sessionsResult, id: "session/list")
+            let providersResult = try await repository.listProviders()
+            apply(result: providersResult, id: "provider/list")
+            connectionState = .connected
+            statusMessage = nil
+
+            guard let sessionToRestore,
+                  sessions.contains(where: { $0.sessionKey == sessionToRestore }) else {
+                return
+            }
+            selectedSessionKey = sessionToRestore
+            settings.lastSessionKey = sessionToRestore
+            saveSettings()
+            try await repository.subscribe(sessionKey: sessionToRestore)
+            subscribedSessionKeys.insert(sessionToRestore)
+            try await refreshLatestHistory(sessionKey: sessionToRestore)
+        } catch {
+            showConnectionError(error)
         }
     }
 

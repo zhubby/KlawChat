@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		09FFEEE12FA4D1000001E49C /* MarkdownUI in Frameworks */ = {isa = PBXBuildFile; productRef = 09FFEEE22FA4D1000001E49C /* MarkdownUI */; };
+		09FFEEE42FA4D1000001E49C /* Starscream in Frameworks */ = {isa = PBXBuildFile; productRef = 09FFEEE52FA4D1000001E49C /* Starscream */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -70,6 +71,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				09FFEEE12FA4D1000001E49C /* MarkdownUI in Frameworks */,
+				09FFEEE42FA4D1000001E49C /* Starscream in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -131,6 +133,7 @@
 			name = KlawChat;
 			packageProductDependencies = (
 				09FFEEE22FA4D1000001E49C /* MarkdownUI */,
+				09FFEEE52FA4D1000001E49C /* Starscream */,
 			);
 			productName = KlawChat;
 			productReference = 09FFEEB22FA4BC220001E49C /* KlawChat.app */;
@@ -216,6 +219,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				09FFEEE32FA4D1000001E49C /* XCRemoteSwiftPackageReference "swift-markdown-ui" */,
+				09FFEEE62FA4D1000001E49C /* XCRemoteSwiftPackageReference "Starscream" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 09FFEEB32FA4BC220001E49C /* Products */;
@@ -614,6 +618,14 @@
 				minimumVersion = 2.4.0;
 			};
 		};
+		09FFEEE62FA4D1000001E49C /* XCRemoteSwiftPackageReference "Starscream" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/daltoniam/Starscream.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 4.0.6;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -621,6 +633,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 09FFEEE32FA4D1000001E49C /* XCRemoteSwiftPackageReference "swift-markdown-ui" */;
 			productName = MarkdownUI;
+		};
+		09FFEEE52FA4D1000001E49C /* Starscream */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 09FFEEE62FA4D1000001E49C /* XCRemoteSwiftPackageReference "Starscream" */;
+			productName = Starscream;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

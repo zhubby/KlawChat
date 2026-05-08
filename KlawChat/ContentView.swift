@@ -164,7 +164,7 @@ private struct ConnectionHeaderView: View {
         switch viewModel.connectionState {
         case .connected:
             return "checkmark.circle.fill"
-        case .connecting:
+        case .connecting, .reconnecting:
             return "arrow.triangle.2.circlepath"
         case .error:
             return "exclamationmark.triangle.fill"
@@ -177,7 +177,7 @@ private struct ConnectionHeaderView: View {
         switch viewModel.connectionState {
         case .connected:
             return .green
-        case .connecting:
+        case .connecting, .reconnecting:
             return .orange
         case .error:
             return .red
@@ -789,6 +789,7 @@ private struct EmptyChatView: View {
 
 private final class PreviewChatRepository: ChatRepositoryProtocol {
     var frames: AsyncStream<ServerFrame> { AsyncStream { _ in } }
+    var connectionEvents: AsyncStream<GatewayWebSocketConnectionEvent> { AsyncStream { _ in } }
     var settings = GatewaySettings.defaults
 
     func save(settings: GatewaySettings) {}

@@ -3,6 +3,7 @@ import Foundation
 enum ConnectionState: Equatable {
     case disconnected
     case connecting
+    case reconnecting
     case connected
     case error(String)
 
@@ -12,6 +13,8 @@ enum ConnectionState: Equatable {
             return "Offline"
         case .connecting:
             return "Connecting"
+        case .reconnecting:
+            return "Reconnecting"
         case .connected:
             return "Ready"
         case .error:

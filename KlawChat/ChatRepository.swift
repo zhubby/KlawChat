@@ -2,6 +2,7 @@ import Foundation
 
 protocol ChatRepositoryProtocol {
     var frames: AsyncStream<ServerFrame> { get }
+    var connectionEvents: AsyncStream<GatewayWebSocketConnectionEvent> { get }
     var settings: GatewaySettings { get }
 
     func save(settings: GatewaySettings)
@@ -33,6 +34,7 @@ final class ChatRepository: ChatRepositoryProtocol {
     private let settingsStore: GatewaySettingsStore
 
     var frames: AsyncStream<ServerFrame> { client.frames }
+    var connectionEvents: AsyncStream<GatewayWebSocketConnectionEvent> { client.connectionEvents }
     private(set) var settings: GatewaySettings
 
     init(client: GatewayWebSocketClientProtocol, settingsStore: GatewaySettingsStore) {

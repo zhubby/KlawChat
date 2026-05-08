@@ -651,6 +651,79 @@ struct ChatViewModelTests {
         #expect(viewModel.canCreateSession == true)
     }
 
+    @Test func reconnectEventRestoresWorkspaceSubscriptionAndLatestHistory() async {
+        let repository = MockChatRepository()
+        repository.bootstrapResult = [
+            "sessions": .array([
+                .object([
+                    "session_key": .string("s1"),
+                    "title": .string("Agent"),
+                    "created_at_ms": .number(1)
+                ])
+            ])
+        ]
+        repository.historyResult = [
+            "session_key": .string("s1"),
+            "messages": .array([
+                .object([
+                    "role": .string("assistant"),
+                    "content": .string("recovered answer"),
+                    "timestamp_ms": .number(2),
+                    "message_id": .string("m2")
+                ])
+            ]),
+            "has_more": .bool(false),
+            "oldest_loaded_message_id": .string("m2")
+        ]
+        let viewModel = ChatViewModel(repository: repository)
+        viewModel.connect()
+        await waitForConnectionEventStream(in: repository)
+        viewModel.selectSession(viewModel.sessions[0])
+        await Task.yield()
+        repository.resetCallTracking()
+
+        repository.emitConnectionEvent(.reconnecting)
+        await Task.yield()
+        repository.emitConnectionEvent(.reconnected)
+        await waitForMessages(["recovered answer"], in: viewModel)
+
+        #expect(viewModel.connectionState == .connected)
+        #expect(repository.initializeRequestCount == 1)
+        #expect(repository.bootstrapRequestCount == 1)
+        #expect(repository.providerListRequestCount == 1)
+        #expect(repository.subscribedSessionKeys == ["s1"])
+        #expect(repository.loadedHistoryRequests == [
+            HistoryRequest(sessionKey: "s1", beforeMessageID: nil, limit: 10)
+        ])
+    }
+
+    @Test func reconnectingStateFailsSendFastWithoutSubmittingTurn() async {
+        let repository = MockChatRepository()
+        repository.bootstrapResult = [
+            "sessions": .array([
+                .object([
+                    "session_key": .string("s1"),
+                    "title": .string("Agent"),
+                    "created_at_ms": .number(1)
+                ])
+            ])
+        ]
+        let viewModel = ChatViewModel(repository: repository)
+        viewModel.connect()
+        await waitForConnectionEventStream(in: repository)
+        viewModel.selectSession(viewModel.sessions[0])
+        await Task.yield()
+
+        repository.emitConnectionEvent(.reconnecting)
+        viewModel.draft = "hello while reconnecting"
+        viewModel.sendDraft()
+        await Task.yield()
+
+        #expect(viewModel.connectionState == .reconnecting)
+        #expect(repository.submittedTurns.isEmpty)
+        #expect(viewModel.draft == "hello while reconnecting")
+    }
+
     private func seedSession(_ sessionKey: String, in viewModel: ChatViewModel) {
         viewModel.apply(frame: .result(id: "bootstrap", result: [
             "sessions": .array([
@@ -675,10 +748,25 @@ struct ChatViewModelTests {
         }
     }
 
+    private func waitForConnectionEventStream(in repository: MockChatRepository) async {
+        for _ in 0..<20 {
+            if repository.isConnectionEventStreamActive {
+                return
+            }
+            try? await Task.sleep(nanoseconds: 10_000_000)
+        }
+    }
+
 }
 
 private final class MockChatRepository: ChatRepositoryProtocol {
     var frames: AsyncStream<ServerFrame> { AsyncStream { _ in } }
+    private var connectionEventContinuation: AsyncStream<GatewayWebSocketConnectionEvent>.Continuation?
+    private(set) var isConnectionEventStreamActive = false
+    lazy var connectionEvents: AsyncStream<GatewayWebSocketConnectionEvent> = AsyncStream { continuation in
+        self.isConnectionEventStreamActive = true
+        self.connectionEventContinuation = continuation
+    }
     var settings = GatewaySettings.defaults
     var initializeRequestCount = 0
     var bootstrapRequestCount = 0
@@ -694,6 +782,7 @@ private final class MockChatRepository: ChatRepositoryProtocol {
         "messages": .array([]),
         "has_more": .bool(false)
     ]
+    var subscribedSessionKeys: [String] = []
     var loadedHistoryRequests: [HistoryRequest] = []
 
     func save(settings: GatewaySettings) {
@@ -718,7 +807,9 @@ private final class MockChatRepository: ChatRepositoryProtocol {
     }
     func updateSession(sessionKey: String, title: String, modelProvider: String?, model: String?) async throws {}
     func deleteSession(sessionKey: String) async throws {}
-    func subscribe(sessionKey: String) async throws {}
+    func subscribe(sessionKey: String) async throws {
+        subscribedSessionKeys.append(sessionKey)
+    }
     func loadHistory(sessionKey: String, beforeMessageID: String?, limit: Int) async throws -> [String: JSONValue] {
         loadedHistoryRequests.append(HistoryRequest(sessionKey: sessionKey, beforeMessageID: beforeMessageID, limit: limit))
         return historyResult
@@ -735,6 +826,18 @@ private final class MockChatRepository: ChatRepositoryProtocol {
     func respondToTool(requestID: String, threadID: String, turnID: String, result: [String: JSONValue]) async throws {}
     func respondToUserInput(requestID: String, threadID: String, turnID: String, input: String) async throws {
         userInputResponses.append(UserInputResponse(requestID: requestID, threadID: threadID, turnID: turnID, input: input))
+    }
+
+    func emitConnectionEvent(_ event: GatewayWebSocketConnectionEvent) {
+        connectionEventContinuation?.yield(event)
+    }
+
+    func resetCallTracking() {
+        initializeRequestCount = 0
+        bootstrapRequestCount = 0
+        providerListRequestCount = 0
+        subscribedSessionKeys.removeAll()
+        loadedHistoryRequests.removeAll()
     }
 }
 
@@ -759,6 +862,7 @@ private struct HistoryRequest: Equatable {
 
 private final class MockWebSocketClient: GatewayWebSocketClientProtocol {
     var frames: AsyncStream<ServerFrame> { AsyncStream { _ in } }
+    var connectionEvents: AsyncStream<GatewayWebSocketConnectionEvent> { AsyncStream { _ in } }
     var sentMethods: [String] = []
     var sentNotifications: [String] = []
     var sentParams: [[String: JSONValue]] = []

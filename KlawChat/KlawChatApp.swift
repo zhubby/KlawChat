@@ -11,7 +11,7 @@ import SwiftUI
 struct KlawChatApp: App {
     @StateObject private var viewModel = ChatViewModel(
         repository: ChatRepository(
-            client: URLSessionGatewayWebSocketClient(),
+            client: StarscreamGatewayWebSocketClient(),
             settingsStore: UserDefaultsGatewaySettingsStore()
         )
     )
