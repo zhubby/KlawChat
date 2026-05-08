@@ -157,3 +157,67 @@ Add when needed for:
 -   Covered by tests
 -   No regressions
 -   Maintainable and clear
+
+## Git Commit Guidelines
+
+Commit messages follow the [Conventional Commits](https://www.conventionalcommits.org/) specification. Each commit should be one logical change.
+
+### Commit Message Format
+
+```
+<type>(<scope>): <subject>
+
+<body>
+
+<footer>
+```
+
+- **Subject line**: Required, imperative mood, lowercase, no trailing period, max 72 chars
+- **Body**: Optional, explains *what* and *why*, not *how*
+- **Footer**: Optional, use for `BREAKING CHANGE:`, `Closes #123`, etc.
+
+### Commit Types
+
+
+| Type       | Description                                 |
+| ---------- | ------------------------------------------- |
+| `feat`     | New feature                                 |
+| `fix`      | Bug fix                                     |
+| `docs`     | Documentation changes                       |
+| `style`    | Code style (formatting, semicolons, etc.)   |
+| `refactor` | Code refactoring without behavior change    |
+| `perf`     | Performance improvements                    |
+| `test`     | Test additions or corrections               |
+| `chore`    | Maintenance tasks, dependencies, tooling    |
+| `ci`       | CI/CD configuration changes                 |
+| `build`    | Build system or external dependency changes |
+| `revert`   | Reverting a previous commit                 |
+
+
+### Examples
+
+```
+feat(cli): add agent mode for one-shot requests
+
+Closes #42
+
+feat(core): implement reliability retry with exponential backoff
+
+Add retry policy with configurable max attempts and base delay.
+Idempotency keys prevent duplicate processing on retry.
+
+BREAKING CHANGE: AgentLoop now requires ReliabilityConfig parameter
+
+fix(gui): resolve timestamp formatting in panel display
+
+docs: add git commit guidelines to agents.md
+```
+
+### Pull Request Guidelines
+
+PRs should include:
+
+- Purpose and impacted crates
+- Test evidence (commands run + results)
+- Config/doc updates when behavior changes
+- Sample CLI output when user-facing behavior is modified
